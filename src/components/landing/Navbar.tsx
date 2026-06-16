@@ -70,7 +70,7 @@ export default function Navbar({
             )}
 
             {/* Brand Text — Vertical Stack */}
-            <div className="flex flex-col leading-none">
+            <div className="flex flex-col leading-none items-center text-center">
               <span
                 className="font-tagline font-semibold text-sm sm:text-base tracking-wide"
                 style={{ color: "#B31324" }}
