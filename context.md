@@ -136,6 +136,38 @@
 - ⚠️ Resend API key masih placeholder — fitur lupa password belum bisa
 - ⚠️ Rate limiter fail open — kalau DB error, request tetap diizinkan (safety)
 
+### [2026-06-16] — Optimasi Produk & UI Fixes
+
+#### Yang dilakukan:
+1. **Landing page: Load More Products** — `src/app/page.tsx` + `src/components/landing/ProductGrid.tsx`
+   - SSR awal hanya render 20 produk (ISR tetap jalan, super cepat)
+   - Tombol "Muat Lainnya" fetch halaman berikutnya via API → append ke grid
+   - Tombol hilang otomatis saat semua produk termuat
+   - Hitungan produk: "Menampilkan 20 dari 85 produk"
+2. **Admin produk: Pagination Server-Side** — `src/app/admin/dashboard/products/page.tsx`
+   - Fetch 50 produk per halaman (dari sebelumnya limit=200 semua)
+   - Navigasi halaman dengan prev/next + number buttons (max 7 tombol)
+   - Halaman aktif terhighlight, total produk ditampilkan
+3. **Komponen SocialIcon** — `src/components/shared/SocialIcon.tsx` (BARU)
+   - Logo asli untuk Instagram, Facebook, Twitter, YouTube, TikTok, Shopee, Tokopedia
+   - Deteksi otomatis dari nama platform (case-insensitive, support alias: "ig", "fb", dll)
+   - Fallback ke huruf pertama jika platform tidak dikenal
+   - ContactSection + Footer diperbarui pakai `<SocialIcon>`
+4. **Fix Hero button "Tentang Kami"** — `src/components/landing/Hero.tsx`
+   - Shadcn outline variant punya `bg-background` (putih) → timpa text putih
+   - Tambah `bg-transparent` override agar background hero gelap tembus
+5. **Navbar cleanup** — `src/components/landing/Navbar.tsx`
+   - Hapus kategori produk dari navbar (Kursi, Meja, dll)
+   - Navbar sekarang: Beranda, Katalog, Tentang, Kontak
+
+#### Status:
+- ✅ Build berhasil (0 error, 0 warning)
+- ✅ Landing page: load more + pagination
+- ✅ Admin produk: server-side pagination 50/halaman
+- ✅ Social icon: logo asli Instagram, Facebook, TikTok, dll
+- ✅ Hero button putih terlihat sekarang
+- ✅ Navbar bersih tanpa kategori produk
+
 1. **Prisma v6 (bukan v7)** — v7 ubah format konfigurasi secara drastis, pilih v6 yang lebih stabil
 2. **SQLite untuk development** — gampang, file-based. PostgreSQL via Supabase untuk production
 3. **Credentials-only auth** — single admin, no OAuth
