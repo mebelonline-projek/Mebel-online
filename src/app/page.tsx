@@ -43,8 +43,10 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+const INITIAL_PRODUCT_LIMIT = 20;
+
 export default async function HomePage() {
-  const [settings, categories, products] = await Promise.all([
+  const [settings, categories, products, totalProducts] = await Promise.all([
     getAllSettings(),
     prisma.category.findMany({
       include: { _count: { select: { products: true } } },
@@ -56,7 +58,9 @@ export default async function HomePage() {
         category: { select: { name: true, slug: true } },
       },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      take: INITIAL_PRODUCT_LIMIT,
     }),
+    prisma.product.count({ where: { isActive: true } }),
   ]);
 
   const parsedProducts = products.map((p) => ({
@@ -114,6 +118,8 @@ export default async function HomePage() {
         categories={categories}
         waNumber={settings.wa_number}
         waMessage={settings.wa_message}
+        totalProducts={totalProducts}
+        initialLimit={INITIAL_PRODUCT_LIMIT}
       />
 
       <AboutSection

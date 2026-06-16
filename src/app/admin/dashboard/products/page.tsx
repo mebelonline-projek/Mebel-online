@@ -42,7 +42,11 @@ import {
   Loader2,
   Package,
   ImageIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+
+const PAGE_SIZE = 50;
 
 interface Category {
   id: string;
@@ -64,6 +68,13 @@ interface Product {
   createdAt: string;
 }
 
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 const emptyForm = {
   name: "",
   description: "",
@@ -77,6 +88,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -84,33 +96,58 @@ export default function ProductsPage() {
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    limit: PAGE_SIZE,
+    total: 0,
+    totalPages: 0,
+  });
+
+  const fetchProducts = useCallback(async (page: number) => {
+    setIsLoadingMore(true);
+    try {
+      const res = await fetch(`/api/products?all=true&page=${page}&limit=${PAGE_SIZE}`);
+      const data = await res.json();
+
+      if (data.success) {
+        setProducts(data.data.products);
+        setPagination(data.data.pagination);
+      }
+    } catch {
+      toast.error("Gagal memuat produk");
+    } finally {
+      setIsLoadingMore(false);
+      setIsLoading(false);
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const [productsRes, categoriesRes] = await Promise.all([
-        fetch("/api/products?all=true&limit=200"),
+      const [categoriesRes] = await Promise.all([
         fetch("/api/categories"),
+        fetchProducts(1),
       ]);
 
-      const productsData = await productsRes.json();
       const categoriesData = await categoriesRes.json();
 
-      if (productsData.success) {
-        setProducts(productsData.data.products);
-      }
       if (categoriesData.success) {
         setCategories(categoriesData.data);
       }
     } catch {
       toast.error("Gagal memuat data");
-    } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchProducts]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const goToPage = (page: number) => {
+    if (page < 1 || page > pagination.totalPages) return;
+    fetchProducts(page);
+  };
 
   const filteredProducts = products.filter(
     (p) =>
@@ -162,7 +199,7 @@ export default function ProductsPage() {
       if (data.success) {
         toast.success(editingProduct ? "Produk berhasil diedit" : "Produk berhasil ditambah");
         setIsDialogOpen(false);
-        fetchData();
+        fetchProducts(pagination.page);
       } else {
         toast.error(data.error || "Gagal menyimpan produk");
       }
@@ -185,7 +222,12 @@ export default function ProductsPage() {
       if (data.success) {
         toast.success("Produk berhasil dihapus");
         setDeleteTarget(null);
-        fetchData();
+        // Jika halaman saat ini kosong setelah hapus, mundur satu halaman
+        const targetPage =
+          products.length === 1 && pagination.page > 1
+            ? pagination.page - 1
+            : pagination.page;
+        fetchProducts(targetPage);
       } else {
         toast.error(data.error || "Gagal menghapus produk");
       }
@@ -249,13 +291,18 @@ export default function ProductsPage() {
               className="pl-9 h-10"
             />
           </div>
-          <Button
-            onClick={openCreate}
-            className="bg-brand-maroon hover:bg-brand-maroon-dark text-white rounded-xl"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Tambah Produk
-          </Button>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-400">
+              {pagination.total} produk
+            </span>
+            <Button
+              onClick={openCreate}
+              className="bg-brand-maroon hover:bg-brand-maroon-dark text-white rounded-xl"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Tambah Produk
+            </Button>
+          </div>
         </div>
 
         {/* Table */}
@@ -279,99 +326,166 @@ export default function ProductsPage() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
-                      Produk
-                    </th>
-                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
-                      Kategori
-                    </th>
-                    <th className="text-center text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
-                      Status
-                    </th>
-                    <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
-                      Aksi
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filteredProducts.map((product) => (
-                    <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0">
-                            {product.image ? (
-                              <Image
-                                src={product.image}
-                                alt={product.name}
-                                width={40}
-                                height={40}
-                                className="w-full h-full object-cover"
-                                unoptimized
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <ImageIcon className="h-4 w-4 text-gray-400" />
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              {product.name}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {product.createdAt
-                                ? new Date(product.createdAt).toLocaleDateString("id-ID")
-                                : ""}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-0">
-                          {product.category.name}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <Badge
-                          variant="secondary"
-                          className={
-                            product.isActive
-                              ? "bg-green-50 text-green-700 border-0"
-                              : "bg-red-50 text-red-700 border-0"
-                          }
-                        >
-                          {product.isActive ? "Aktif" : "Nonaktif"}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEdit(product)}
-                            className="h-8 w-8 text-gray-400 hover:text-brand-maroon"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeleteTarget(product)}
-                            className="h-8 w-8 text-gray-400 hover:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
+                        Produk
+                      </th>
+                      <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
+                        Kategori
+                      </th>
+                      <th className="text-center text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
+                        Status
+                      </th>
+                      <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
+                        Aksi
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filteredProducts.map((product) => (
+                      <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0">
+                              {product.image ? (
+                                <Image
+                                  src={product.image}
+                                  alt={product.name}
+                                  width={40}
+                                  height={40}
+                                  className="w-full h-full object-cover"
+                                  unoptimized
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <ImageIcon className="h-4 w-4 text-gray-400" />
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">
+                                {product.name}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {product.createdAt
+                                  ? new Date(product.createdAt).toLocaleDateString("id-ID")
+                                  : ""}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-0">
+                            {product.category.name}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <Badge
+                            variant="secondary"
+                            className={
+                              product.isActive
+                                ? "bg-green-50 text-green-700 border-0"
+                                : "bg-red-50 text-red-700 border-0"
+                            }
+                          >
+                            {product.isActive ? "Aktif" : "Nonaktif"}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEdit(product)}
+                              className="h-8 w-8 text-gray-400 hover:text-brand-maroon"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeleteTarget(product)}
+                              className="h-8 w-8 text-gray-400 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3">
+                  <span className="text-sm text-gray-500">
+                    Halaman {pagination.page} dari {pagination.totalPages}
+                    {isLoadingMore && (
+                      <Loader2 className="inline h-3 w-3 ml-2 animate-spin" />
+                    )}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={pagination.page <= 1 || isLoadingMore}
+                      onClick={() => goToPage(pagination.page - 1)}
+                      className="rounded-xl h-9 px-3"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+
+                    {/* Page number buttons */}
+                    {Array.from({ length: Math.min(pagination.totalPages, 7) }, (_, i) => {
+                      // Show pages around current page
+                      let pageNum: number;
+                      if (pagination.totalPages <= 7) {
+                        pageNum = i + 1;
+                      } else if (pagination.page <= 4) {
+                        pageNum = i + 1;
+                      } else if (pagination.page >= pagination.totalPages - 3) {
+                        pageNum = pagination.totalPages - 6 + i;
+                      } else {
+                        pageNum = pagination.page - 3 + i;
+                      }
+
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={pagination.page === pageNum ? "default" : "outline"}
+                          size="sm"
+                          disabled={isLoadingMore}
+                          onClick={() => goToPage(pageNum)}
+                          className={`rounded-xl h-9 w-9 p-0 ${
+                            pagination.page === pageNum
+                              ? "bg-brand-maroon hover:bg-brand-maroon-dark text-white"
+                              : ""
+                          }`}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={pagination.page >= pagination.totalPages || isLoadingMore}
+                      onClick={() => goToPage(pagination.page + 1)}
+                      className="rounded-xl h-9 px-3"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

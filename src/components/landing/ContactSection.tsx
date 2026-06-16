@@ -2,6 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { MapPin, Phone, Mail, Clock } from "lucide-react";
+import SocialIcon from "@/components/shared/SocialIcon";
 import type { SocialMediaItem } from "@/types";
 
 interface ContactSectionProps {
@@ -102,9 +103,7 @@ export default function ContactSection({
                       className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-brand-maroon hover:text-white transition-all duration-300"
                       aria-label={soc.platform}
                     >
-                      <span className="text-sm font-semibold">
-                        {soc.platform.charAt(0).toUpperCase()}
-                      </span>
+                      <SocialIcon platform={soc.platform} className="h-5 w-5" />
                     </a>
                   ))}
                 </div>

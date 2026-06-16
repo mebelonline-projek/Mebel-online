@@ -12,8 +12,13 @@
 ## Ringkasan Proyek
 
 **Nama:** Muara Teweh — Landing Page Toko Furnitur + Admin Dashboard
-**Tech Stack:** Next.js 15, TypeScript, Tailwind CSS, shadcn/ui, Prisma (SQLite dev → PostgreSQL prod), NextAuth.js v5, Resend, Framer Motion, Lucide React
-**Status:** Development — build berhasil (17 halaman) — Phase 4 Polish selesai
+**Tech Stack:** Next.js 15 (latest), TypeScript, Tailwind CSS v4, shadcn/ui, Prisma 6 (PostgreSQL via Supabase), NextAuth.js v5, Resend, Framer Motion 12, Lucide React
+**Deploy:** Vercel (akun klien) + Supabase (Singapore) + GitHub
+**Status:** ✅ Production — build berhasil (21 halaman) — Terdeploy di Vercel
+**URL Production:** https://mebel-online.vercel.app
+**GitHub:** https://github.com/mebelonline-projek/Mebel-online
+**Supabase:** xczbowaotnvzduikgdad (Singapore)
+**Akun Vercel/GitHub/Supabase:** Klien (terpisah dari akun pribadi developer)
 
 ---
 
@@ -97,21 +102,52 @@
 - ⚠️ Supabase dan Resend masih placeholder — fitur email dan upload tidak akan berfungsi tanpa API key nyata
 - ⚠️ AUTH_SECRET masih placeholder — generate ulang sebelum production
 
----
+### [2026-06-16] — Deployment & Bug Fixes
 
-## Keputusan Arsitektur Penting
+#### Yang dilakukan:
+
+**Infrastructure Setup:**
+1. **GitHub** — repository baru di akun klien (`mebelonline-projek/Mebel-online`)
+2. **Supabase** — PostgreSQL database + Storage bucket `furniture-images` (public read policy)
+3. **Vercel** — deploy akun klien, environment variables untuk Supabase & NextAuth
+4. **Prisma migration** — SQLite → PostgreSQL, tambah `DIRECT_URL` untuk direct connection
+
+**Upgrades:**
+1. **Next.js upgrade** — 15.2.4 → latest (fix celah keamanan CVE-2025-66478)
+2. **Middleware fix** — ekspor diubah jadi `export const middleware = auth` (format Next.js terbaru)
+
+**Bug Fixes (🔴 kritis):**
+1. **ImageUpload onChange salah** — baris 132 settings page: input text pakai `onChange` yang akses `e.target.files`, diganti ke `e.target.value` + tambah `onChange` prop
+2. **GET /api/settings publik** — siapa pun bisa baca semua settings toko, sekarang diproteksi `requireAdmin()`
+3. **Rate limiter in-memory** — data hilang tiap server restart (Vercel serverless). Pindah ke database Prisma (tabel `RateLimit` baru + auto-cleanup setiap 5 menit)
+
+**Database Schema:**
+- Model `RateLimit` baru — `identifier`, `action`, `count`, `expiresAt`
+- Unique constraint `[identifier, action]`
+- Index on `expiresAt` untuk cleanup
+
+#### Status:
+- ✅ Deployed ke Vercel akun klien
+- ✅ Database PostgreSQL + seed data
+- ✅ Storage Supabase aktif (upload gambar jalan)
+- ✅ API settings terproteksi
+- ✅ Rate limiter persistent (database-based)
+- ✅ Next.js versi terbaru (aman)
+- ⚠️ Resend API key masih placeholder — fitur lupa password belum bisa
+- ⚠️ Rate limiter fail open — kalau DB error, request tetap diizinkan (safety)
 
 1. **Prisma v6 (bukan v7)** — v7 ubah format konfigurasi secara drastis, pilih v6 yang lebih stabil
 2. **SQLite untuk development** — gampang, file-based. PostgreSQL via Supabase untuk production
 3. **Credentials-only auth** — single admin, no OAuth
 4. **JWT 30 menit** — stateless, no refresh token
 5. **requireAdmin() pattern** — proteksi API via helper, bukan middleware (karena NextAuth middleware hanya proteksi page)
-6. **In-memory rate limiter** — cukup untuk dev, ganti Redis untuk production multi-instance
-7. **Key yang belum diisi di .env:**
-   - `DATABASE_URL` (default SQLite, ganti ke PostgreSQL saat deploy)
-   - `RESEND_API_KEY` + `RESEND_FROM_EMAIL`
-   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-   - `AUTH_SECRET` (generate dengan `openssl rand -base64 32`)
+6. **Database-based rate limiter** — tadinya in-memory (hilang saat restart), sekarang pindah ke tabel `RateLimit` di Prisma. Cocok untuk Vercel serverless. Fail open jika DB error.
+7. **GitHub/Vercel/Supabase akun klien** — semuanya pake akun terpisah dari developer (ownership jelas untuk handover)
+8. **Status .env:**
+   - ✅ `DATABASE_URL` + `DIRECT_URL` — PostgreSQL Supabase
+   - ✅ `NEXT_PUBLIC_SUPABASE_URL` + `keys` — Supabase Storage
+   - ⚠️ `RESEND_API_KEY` — masih placeholder
+   - ⚠️ `AUTH_SECRET` — masih placeholder (generate ulang sebelum production)
 
 ---
 

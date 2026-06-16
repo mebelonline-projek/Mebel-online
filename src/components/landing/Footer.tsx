@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
 import { MapPin, Phone, Mail, ArrowUp } from "lucide-react";
+import SocialIcon from "@/components/shared/SocialIcon";
 import type { SocialMediaItem } from "@/types";
 
 interface FooterProps {
@@ -104,9 +105,7 @@ export default function Footer({
                     className="w-9 h-9 rounded-full bg-gray-800 flex items-center justify-center text-gray-400 hover:bg-brand-maroon hover:text-white transition-all duration-300"
                     aria-label={soc.platform}
                   >
-                    <span className="text-xs font-semibold">
-                      {soc.platform.charAt(0).toUpperCase()}
-                    </span>
+                    <SocialIcon platform={soc.platform} className="h-4 w-4" />
                   </a>
                 ))}
               </div>

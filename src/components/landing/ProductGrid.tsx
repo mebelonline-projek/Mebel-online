@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { Loader2, ChevronDown } from "lucide-react";
 import ProductCard from "./ProductCard";
+import { Button } from "@/components/ui/button";
 import type { ProductWithCategory, CategoryWithProductCount } from "@/types";
 
 interface ProductGridProps {
@@ -10,21 +12,57 @@ interface ProductGridProps {
   categories: CategoryWithProductCount[];
   waNumber?: string;
   waMessage?: string;
+  totalProducts: number;
+  initialLimit: number;
 }
 
 export default function ProductGrid({
-  products,
+  products: initialProducts,
   categories,
   waNumber,
   waMessage,
+  totalProducts,
+  initialLimit,
 }: ProductGridProps) {
   const [activeCategory, setActiveCategory] = useState<string>("semua");
+  const [products, setProducts] = useState<ProductWithCategory[]>(initialProducts);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(initialProducts.length < totalProducts);
   const prefersReduced = useReducedMotion();
 
   const filteredProducts =
     activeCategory === "semua"
       ? products
       : products.filter((p) => p.category.slug === activeCategory);
+
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+
+    const nextPage = Math.ceil(products.length / initialLimit) + 1;
+    const params = new URLSearchParams({
+      page: String(nextPage),
+      limit: String(initialLimit),
+    });
+
+    try {
+      const res = await fetch(`/api/products?${params}`);
+      const data = await res.json();
+
+      if (data.success) {
+        const newProducts: ProductWithCategory[] = data.data.products;
+        setProducts((prev) => [...prev, ...newProducts]);
+        setHasMore(newProducts.length >= initialLimit);
+      }
+    } catch {
+      // silent fail — user can retry
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, products.length, initialLimit]);
+
+  const visibleCount = filteredProducts.length;
+  const showLoadMore = hasMore && activeCategory === "semua";
 
   return (
     <section id="katalog" className="py-20 sm:py-28 bg-white">
@@ -110,7 +148,7 @@ export default function ProductGrid({
         </AnimatePresence>
 
         {/* Empty State */}
-        {filteredProducts.length === 0 && (
+        {visibleCount === 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -135,23 +173,62 @@ export default function ProductGrid({
               Belum Ada Produk
             </h3>
             <p className="text-gray-500 max-w-sm mx-auto">
-              Belum ada produk di kategori ini. Silakan lihat kategori lainnya
-              atau kembali lagi nanti.
+              {activeCategory === "semua"
+                ? "Belum ada produk yang ditampilkan."
+                : "Belum ada produk di kategori ini. Silakan lihat kategori lainnya atau kembali lagi nanti."}
             </p>
           </motion.div>
         )}
 
+        {/* Load More Button — only visible in "Semua" view */}
+        {showLoadMore && (
+          <motion.div
+            initial={{ opacity: 0, y: prefersReduced ? 0 : 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: prefersReduced ? 0 : 0.4 }}
+            className="text-center mt-12"
+          >
+            <Button
+              onClick={loadMore}
+              disabled={isLoadingMore}
+              size="lg"
+              variant="outline"
+              className="rounded-full px-10 h-12 border-gray-300 text-gray-700 hover:bg-brand-maroon hover:text-white hover:border-brand-maroon transition-all duration-300"
+            >
+              {isLoadingMore ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Memuat...
+                </>
+              ) : (
+                <>
+                  Muat Lainnya
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </>
+              )}
+            </Button>
+          </motion.div>
+        )}
+
         {/* Product count info */}
-        {filteredProducts.length > 0 && (
+        {visibleCount > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="text-center mt-12 text-sm text-gray-400"
+            className="text-center mt-6 text-sm text-gray-400"
           >
-            Menampilkan {filteredProducts.length} produk
-            {activeCategory !== "semua" &&
-              ` di kategori ini`}
+            Menampilkan {visibleCount} produk
+            {activeCategory !== "semua" && " di kategori ini"}
+            {activeCategory === "semua" && (
+              <>
+                {" — "}
+                {hasMore
+                  ? `${Math.min(products.length, totalProducts)} dari ${totalProducts} produk`
+                  : `${totalProducts} produk`}
+              </>
+            )}
           </motion.div>
         )}
       </div>
