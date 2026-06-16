@@ -132,7 +132,7 @@ export default function Hero({
             onClick={scrollToAbout}
             variant="outline"
             size="lg"
-            className="border-white/30 text-white hover:bg-white/10 rounded-full px-8 py-6 text-lg"
+            className="border-white/30 text-white bg-transparent hover:bg-white/10 rounded-full px-8 py-6 text-lg"
             aria-label="Tentang Kami"
           >
             Tentang Kami
