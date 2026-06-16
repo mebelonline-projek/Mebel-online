@@ -101,7 +101,6 @@ export default async function HomePage() {
       />
 
       <Navbar
-        categories={categories}
         siteName={settings.site_name}
         logoUrl={settings.site_logo}
       />
