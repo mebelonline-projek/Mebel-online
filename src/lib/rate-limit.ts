@@ -1,25 +1,11 @@
 /**
- * In-memory rate limiter.
- * Sederhana, cukup untuk single-server deployment.
- * Untuk production dengan banyak instance, ganti dengan Redis.
+ * Rate limiter berbasis database (Prisma).
+ * Data persist meski server restart — cocok untuk Vercel serverless.
+ *
+ * Untuk production multi-instance skala besar, ganti dengan Redis/Vercel KV.
  */
 
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-}
-
-const store = new Map<string, RateLimitEntry>();
-
-// Bersihkan entry expired setiap 5 menit
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of store.entries()) {
-    if (entry.resetAt <= now) {
-      store.delete(key);
-    }
-  }
-}, 5 * 60 * 1000);
+import { prisma } from "./prisma";
 
 interface RateLimiterConfig {
   windowMs: number;
@@ -28,34 +14,70 @@ interface RateLimiterConfig {
 
 /**
  * Membuat rate limiter function.
+ * Otomatis membersihkan entry expired setiap 5 menit.
  *
  * @param windowMs - Jendela waktu dalam milidetik
  * @param maxRequests - Maksimum request dalam jendela waktu
- * @returns Function yang return true jika rate limit terpenuhi, false jika belum
+ * @returns Function yang return { allowed, remaining }
  */
 export function createRateLimiter({ windowMs, maxRequests }: RateLimiterConfig) {
-  return (identifier: string): { allowed: boolean; remaining: number } => {
-    const now = Date.now();
-    const entry = store.get(identifier);
+  return async (identifier: string, action: string): Promise<{ allowed: boolean; remaining: number }> => {
+    try {
+      const now = new Date();
+      const key = `${action}:${identifier}`;
 
-    if (!entry || entry.resetAt <= now) {
-      // Reset atau buat entry baru
-      store.set(identifier, {
-        count: 1,
-        resetAt: now + windowMs,
+      // Cari record yang ada
+      const existing = await prisma.rateLimit.findUnique({
+        where: { identifier_action: { identifier, action } },
       });
-      return { allowed: true, remaining: maxRequests - 1 };
+
+      if (!existing || existing.expiresAt <= now) {
+        // Buat baru (atau reset)
+        await prisma.rateLimit.upsert({
+          where: { identifier_action: { identifier, action } },
+          update: {
+            count: 1,
+            expiresAt: new Date(now.getTime() + windowMs),
+          },
+          create: {
+            identifier,
+            action,
+            count: 1,
+            expiresAt: new Date(now.getTime() + windowMs),
+          },
+        });
+        return { allowed: true, remaining: maxRequests - 1 };
+      }
+
+      if (existing.count >= maxRequests) {
+        return { allowed: false, remaining: 0 };
+      }
+
+      // Increment counter
+      await prisma.rateLimit.update({
+        where: { id: existing.id },
+        data: { count: existing.count + 1 },
+      });
+
+      return { allowed: true, remaining: maxRequests - existing.count - 1 };
+    } catch (error) {
+      // Kalau database error, izinkan request (fail open)
+      console.error("Rate limiter error:", error);
+      return { allowed: true, remaining: maxRequests };
     }
-
-    entry.count += 1;
-
-    if (entry.count > maxRequests) {
-      return { allowed: false, remaining: 0 };
-    }
-
-    return { allowed: true, remaining: maxRequests - entry.count };
   };
 }
+
+// Hapus entry expired setiap 5 menit
+setInterval(async () => {
+  try {
+    await prisma.rateLimit.deleteMany({
+      where: { expiresAt: { lte: new Date() } },
+    });
+  } catch {
+    // Silent fail
+  }
+}, 5 * 60 * 1000);
 
 // Rate limiter presets
 export const authRateLimiter = createRateLimiter({

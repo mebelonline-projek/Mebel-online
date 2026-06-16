@@ -3,9 +3,13 @@ import { getAllSettings, updateSettings } from "@/lib/site-config";
 import { requireAdmin } from "@/lib/api-auth";
 import type { SiteSettings } from "@/types";
 
-// GET /api/settings — Ambil semua pengaturan landing page
+// GET /api/settings — Ambil semua pengaturan landing page (admin only)
 export async function GET() {
   try {
+    // Proteksi: hanya admin
+    const { error } = await requireAdmin();
+    if (error) return error;
+
     const settings = await getAllSettings();
     return NextResponse.json({ success: true, data: settings });
   } catch (error) {

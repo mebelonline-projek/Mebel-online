@@ -13,7 +13,7 @@ export async function POST(request: Request) {
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
       request.headers.get("x-real-ip") ??
       "unknown";
-    const rateCheck = forgotPasswordRateLimiter(`forgot:${ip}`);
+    const rateCheck = await forgotPasswordRateLimiter(ip, "forgot-password");
     if (!rateCheck.allowed) {
       return NextResponse.json(
         {

@@ -65,3 +65,15 @@ model SiteConfig {
   key   String @unique
   value String // JSON stringified for complex values
 }
+
+model RateLimit {
+  id         String   @id @default(cuid())
+  identifier String   // IP atau email
+  action     String   // "forgot-password" / "reset-password"
+  count      Int      @default(1)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([identifier, action])
+  @@index([expiresAt])
+}

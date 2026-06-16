@@ -125,11 +125,11 @@ export default function SettingsPage() {
     }));
   };
 
-  const ImageUpload = ({ value, onUpload, label }: { value: string; onUpload: (f: File) => void; label: string }) => (
+  const ImageUpload = ({ value, onUpload, label, onChange }: { value: string; onUpload: (f: File) => void; label: string; onChange: (val: string) => void }) => (
     <div className="flex items-center gap-3">
       <Input
         value={value}
-        onChange={(e) => onUpload(e.target.files?.[0] as File)}
+        onChange={(e) => onChange(e.target.value)}
         placeholder={`URL ${label} atau upload`}
         className="flex-1"
       />
@@ -182,6 +182,7 @@ export default function SettingsPage() {
               <ImageUpload
                 value={settings.site_logo}
                 onUpload={(f) => handleUpload(f, "site_logo")}
+                onChange={(val) => setSettings((p) => ({ ...p, site_logo: val }))}
                 label="site_logo"
               />
             </div>
@@ -215,6 +216,7 @@ export default function SettingsPage() {
               <ImageUpload
                 value={settings.hero_image}
                 onUpload={(f) => handleUpload(f, "hero_image")}
+                onChange={(val) => setSettings((p) => ({ ...p, hero_image: val }))}
                 label="hero_image"
               />
             </div>
@@ -249,6 +251,7 @@ export default function SettingsPage() {
               <ImageUpload
                 value={settings.about_image}
                 onUpload={(f) => handleUpload(f, "about_image")}
+                onChange={(val) => setSettings((p) => ({ ...p, about_image: val }))}
                 label="about_image"
               />
             </div>
