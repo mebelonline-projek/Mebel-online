@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { buildWaLink } from "@/lib/wa";
 import type { ProductWithCategory } from "@/types";
 
 interface ProductCardProps {
@@ -12,6 +13,7 @@ interface ProductCardProps {
   waNumber?: string;
   waMessage?: string;
   index?: number;
+  priority?: boolean;
 }
 
 export default function ProductCard({
@@ -19,20 +21,24 @@ export default function ProductCard({
   waNumber = "",
   waMessage = "Halo, saya tertarik dengan produk ini.",
   index = 0,
+  priority = false,
 }: ProductCardProps) {
   const prefersReduced = useReducedMotion();
   const waLink = waNumber
-    ? `https://wa.me/${waNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
-        `${waMessage}\n\nProduk: ${product.name}`
-      )}`
+    ? buildWaLink(
+        waNumber,
+        waMessage
+          ? `${waMessage}\n\nProduk: ${product.name}`
+          : `Halo, saya tertarik dengan produk "${product.name}". Silakan infokan detailnya.`
+      )
     : "#";
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: prefersReduced ? 0 : 40 }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
       viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: prefersReduced ? 0 : 0.5, delay: prefersReduced ? 0 : index * 0.1 }}
+      transition={{ duration: prefersReduced ? 0 : 0.4, delay: prefersReduced ? 0 : Math.min(index * 0.05, 0.3) }}
       className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300"
     >
       {/* Image Container */}
@@ -42,6 +48,7 @@ export default function ProductCard({
             src={product.image}
             alt={product.name}
             fill
+            priority={priority}
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="object-cover group-hover:scale-105 transition-transform duration-700"
           />

@@ -293,6 +293,10 @@ export default function SettingsPage() {
                   setSettings((p) => ({ ...p, wa_message: e.target.value }))
                 }
               />
+              <p className="text-xs text-gray-400 mt-1">
+                Pesan ini akan terkirim otomatis saat pengunjung klik tombol WA umum.
+                Untuk tombol WA di tiap produk, nama produk akan ditambahkan otomatis.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Nomor Telepon</Label>

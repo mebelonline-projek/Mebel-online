@@ -157,7 +157,11 @@ export default function ProductsPage() {
 
   const openCreate = () => {
     setEditingProduct(null);
-    setForm(emptyForm);
+    // Auto-fill sortOrder dengan angka tertinggi + 1
+    const maxSort = products.length > 0
+      ? Math.max(...products.map((p) => p.sortOrder))
+      : 0;
+    setForm({ ...emptyForm, sortOrder: maxSort + 1 });
     setIsDialogOpen(true);
   };
 
@@ -338,6 +342,9 @@ export default function ProductsPage() {
                         Kategori
                       </th>
                       <th className="text-center text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
+                        Urutan
+                      </th>
+                      <th className="text-center text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
                         Status
                       </th>
                       <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
@@ -382,6 +389,11 @@ export default function ProductsPage() {
                           <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-0">
                             {product.category.name}
                           </Badge>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className="text-sm font-mono text-gray-700">
+                            {product.sortOrder}
+                          </span>
                         </td>
                         <td className="py-3 px-4 text-center">
                           <Badge

@@ -142,6 +142,7 @@ export default function ProductGrid({
                 waNumber={waNumber}
                 waMessage={waMessage}
                 index={index}
+                priority={index < 6}
               />
             ))}
           </motion.div>

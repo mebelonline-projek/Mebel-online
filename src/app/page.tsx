@@ -132,6 +132,7 @@ export default async function HomePage() {
         email={settings.contact_email}
         address={settings.contact_address}
         waNumber={settings.wa_number}
+        waMessage={settings.wa_message}
         socialMedia={settings.social_media}
       />
 

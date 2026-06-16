@@ -68,6 +68,48 @@ export async function PUT(
       );
     }
 
+    // === Renumber logic: saat sortOrder berubah, produk lain otomatis menyesuaikan ===
+    if (sortOrder !== undefined && sortOrder !== existing.sortOrder) {
+      const oldSort = existing.sortOrder;
+      const newSort = sortOrder;
+
+      await prisma.$transaction(async (tx) => {
+        if (newSort < oldSort) {
+          // Produk naik ke posisi lebih awal → produk di antaranya digeser mundur
+          await tx.product.updateMany({
+            where: {
+              sortOrder: { gte: newSort, lt: oldSort },
+              id: { not: id },
+            },
+            data: { sortOrder: { increment: 1 } },
+          });
+        } else {
+          // Produk turun ke posisi lebih akhir → produk di antaranya digeser maju
+          await tx.product.updateMany({
+            where: {
+              sortOrder: { gt: oldSort, lte: newSort },
+              id: { not: id },
+            },
+            data: { sortOrder: { decrement: 1 } },
+          });
+        }
+
+        await tx.product.update({
+          where: { id },
+          data: { sortOrder: newSort },
+        });
+      });
+
+      // Ambil ulang data setelah renumber
+      const updated = await prisma.product.findUnique({
+        where: { id },
+        include: { category: { select: { name: true, slug: true } } },
+      });
+
+      return NextResponse.json({ success: true, data: updated });
+    }
+
+    // Tanpa perubahan sortOrder — update biasa
     const product = await prisma.product.update({
       where: { id },
       data: {

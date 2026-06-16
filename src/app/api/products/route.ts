@@ -93,6 +93,12 @@ export async function POST(request: Request) {
       );
     }
 
+    // Auto-fill sortOrder: produk baru ditaruh di urutan paling akhir
+    const maxSortOrder = await prisma.product.aggregate({
+      _max: { sortOrder: true },
+    });
+    const nextSortOrder = sortOrder ?? (maxSortOrder._max.sortOrder ?? 0) + 1;
+
     // Generate slug
     const slug = name
       .toLowerCase()
@@ -107,7 +113,7 @@ export async function POST(request: Request) {
         image: image ?? null,
         images: images ? JSON.stringify(images) : "[]",
         categoryId,
-        sortOrder: sortOrder ?? 0,
+        sortOrder: nextSortOrder,
       },
       include: {
         category: { select: { name: true, slug: true } },
