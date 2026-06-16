@@ -1,0 +1,62 @@
+🗺️ Roadmap Berikutnya — Muara Teweh
+Phase 4 sudah selesai. Proyek ini sekarang stabil secara arsitektur, aman, dan terdokumentasi. Berikut opsi-opsi untuk fase selanjutnya, diurutkan berdasarkan prioritas:
+
+🔥 Prioritas 1: Production Readiness
+Item	Detail	Kenapa Penting
+Setup Production .env	Generate AUTH_SECRET, isi RESEND_API_KEY, SUPABASE_* nyata	Tanpa ini fitur upload & email reset password mati
+Deploy ke Vercel + Supabase	Migrasi SQLite → PostgreSQL, setup Vercel project, domain kustom	Biar bisa diakses publik
+Custom Domain + SSL	Setup domain, Vercel auto-handle SSL	Professional look
+Environment Separation	.env.production terpisah dari .env.development	Keamanan
+Estimasi: 1-2 hari
+
+🧪 Prioritas 2: Testing
+Item	Detail
+Unit Tests API routes	Jest/Vitest untuk products, categories, settings API
+Component testing	Landing page components (Hero, ProductCard, dll)
+E2E flow	Playwright/Cypress — admin login → CRUD produk → settings
+Saat ini 0 test. Untuk production, minimal API routes yang critical perlu test.
+
+Estimasi: 2-3 hari
+
+🚀 Prioritas 3: Fitur Lanjutan (Pilih salah satu)
+Opsi A: Customer-Facing Features
+Fitur	Deskripsi
+Halaman detail produk /produk/[slug]	Galeri gambar, deskripsi lengkap, spesifikasi
+Pencarian produk	Search bar di landing page
+Kategori dropdown di navbar	Navigasi lebih cepat
+Testimoni pelanggan	Section baru di landing page
+Opsi B: Admin Enhancement
+Fitur	Deskripsi
+Dashboard charts	Grafik penjualan (manual input), produk terpopuler
+Bulk upload produk	Import dari CSV/Excel
+Activity log	Riwayat perubahan produk/settings
+Opsi C: E-Commerce Light
+Fitur	Deskripsi
+Order management	Admin input order dari WA → tracking status
+Customer management	Database pelanggan, riwayat chat
+Invoice generation	Generate PDF invoice otomatis
+⚡ Prioritas 4: Performa & UX
+Item	Detail
+Image optimization	Next/Image sudah dipakai, tapi bisa setup remote patterns di next.config
+Pagination produk	Sekarang limit 50 langsung, tambah load more / infinite scroll
+CDN untuk gambar	Supabase Storage sudah siap, atau pindah ke Cloudinary
+PWA / Service Worker	Biar landing page bisa di-cache & akses offline
+🔧 Prioritas 5: Infrastruktur
+Item	Detail
+CI/CD GitHub Actions	Auto lint → test → build di setiap PR
+Monitoring & Analytics	Vercel Analytics atau Plausible
+Error tracking	Sentry untuk error production
+Backup database	Scheduled backup SQLite / PostgreSQL dump
+Rekomendasi Saya
+Kalau ini proyek klien/produksi:
+
+Prioritas 1 dulu — production readiness (deploy, env, domain). Sisanya bisa menyusul.
+
+Kalau ini proyek portfolio/showcase:
+
+Prioritas 3 Opsi A — customer-facing features bikin landing page lebih impressive.
+
+Kalau ini proyek side project jangka panjang:
+
+Prioritas 2 dulu — testing biar aman tambah fitur tanpa takut rusak.
+

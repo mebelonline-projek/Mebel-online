@@ -1,103 +1,149 @@
-import Image from "next/image";
+import type { Metadata } from "next";
+import { prisma } from "@/lib/prisma";
+import { getAllSettings } from "@/lib/site-config";
+import Navbar from "@/components/landing/Navbar";
+import Hero from "@/components/landing/Hero";
+import ProductGrid from "@/components/landing/ProductGrid";
+import AboutSection from "@/components/landing/AboutSection";
+import ContactSection from "@/components/landing/ContactSection";
+import Footer from "@/components/landing/Footer";
+import WhatsAppButton from "@/components/landing/WhatsAppButton";
 
-export default function Home() {
+export const revalidate = 60;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getAllSettings();
+
+  return {
+    title: `${settings.site_name} — Mebel Online | Toko Furnitur`,
+    description:
+      settings.hero_subtitle ||
+      "Toko furnitur terpercaya. Koleksi mebel berkualitas untuk rumah impian Anda.",
+    openGraph: {
+      title: `${settings.site_name} — Mebel Online`,
+      description:
+        settings.hero_subtitle ||
+        "Toko furnitur terpercaya. Koleksi mebel berkualitas untuk rumah impian Anda.",
+      type: "website",
+      locale: "id_ID",
+      images: settings.hero_image
+        ? [{ url: settings.hero_image, width: 1200, height: 630 }]
+        : [],
+    },
+    keywords: [
+      "furnitur",
+      "mebel",
+      "Muara Teweh",
+      "toko furnitur",
+      "kursi",
+      "meja",
+      "lemari",
+      "perabot rumah",
+    ],
+  };
+}
+
+export default async function HomePage() {
+  const [settings, categories, products] = await Promise.all([
+    getAllSettings(),
+    prisma.category.findMany({
+      include: { _count: { select: { products: true } } },
+      orderBy: { sortOrder: "asc" },
+    }),
+    prisma.product.findMany({
+      where: { isActive: true },
+      include: {
+        category: { select: { name: true, slug: true } },
+      },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+    }),
+  ]);
+
+  const parsedProducts = products.map((p) => ({
+    ...p,
+    images: p.images ? JSON.parse(p.images) : [],
+  }));
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    name: settings.site_name || "Muara Teweh",
+    description: settings.hero_subtitle || "Toko furnitur terpercaya.",
+    image: settings.hero_image || undefined,
+    url: process.env.AUTH_URL || "https://tokofurnitur.com",
+    telephone: settings.contact_phone || undefined,
+    email: settings.contact_email || undefined,
+    address: settings.contact_address
+      ? {
+          "@type": "PostalAddress",
+          streetAddress: settings.contact_address,
+        }
+      : undefined,
+    ...(settings.social_media?.length
+      ? {
+          sameAs: settings.social_media
+            .filter((s: { url: string }) => s.url)
+            .map((s: { url: string }) => s.url),
+        }
+      : {}),
+  };
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main className="min-h-screen">
+      {/* JSON-LD Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      <Navbar
+        categories={categories}
+        siteName={settings.site_name}
+        logoUrl={settings.site_logo}
+      />
+
+      <Hero
+        title={settings.hero_title}
+        subtitle={settings.hero_subtitle}
+        imageUrl={settings.hero_image}
+      />
+
+      {/* Main Catalog — selalu tampil, dengan filter kategori */}
+      <ProductGrid
+        products={parsedProducts}
+        categories={categories}
+        waNumber={settings.wa_number}
+        waMessage={settings.wa_message}
+      />
+
+      <AboutSection
+        title={settings.about_title}
+        content={settings.about_content}
+        imageUrl={settings.about_image}
+      />
+
+      <ContactSection
+        phone={settings.contact_phone}
+        email={settings.contact_email}
+        address={settings.contact_address}
+        waNumber={settings.wa_number}
+        socialMedia={settings.social_media}
+      />
+
+      <Footer
+        siteName={settings.site_name}
+        description={settings.footer_description}
+        phone={settings.contact_phone}
+        email={settings.contact_email}
+        address={settings.contact_address}
+        socialMedia={settings.social_media}
+        logoUrl={settings.site_logo}
+      />
+
+      <WhatsAppButton
+        waNumber={settings.wa_number}
+        waMessage={settings.wa_message}
+      />
+    </main>
   );
 }
