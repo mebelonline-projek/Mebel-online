@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { ShoppingBag } from "lucide-react";
@@ -24,6 +25,7 @@ export default function ProductCard({
   priority = false,
 }: ProductCardProps) {
   const prefersReduced = useReducedMotion();
+  const [imageLoaded, setImageLoaded] = useState(false);
   const waLink = waNumber
     ? buildWaLink(
         waNumber,
@@ -50,7 +52,11 @@ export default function ProductCard({
             fill
             priority={priority}
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover group-hover:scale-105 transition-transform duration-700"
+            onLoad={() => setImageLoaded(true)}
+            className={`object-cover group-hover:scale-105 transition-transform duration-700 ${
+              imageLoaded ? "opacity-100" : "opacity-0"
+            }`}
+            style={{ transition: "opacity 0.3s ease" }}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">

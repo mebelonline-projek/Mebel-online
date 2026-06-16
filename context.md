@@ -168,6 +168,48 @@
 - ✅ Hero button putih terlihat sekarang
 - ✅ Navbar bersih tanpa kategori produk
 
+### [2026-06-17] — UI Fixes: Hero animasi, WA link, flicker produk, reorder
+
+#### Yang dilakukan:
+
+**Hero Animation (Mewah & Elegan):**
+1. **Word-by-word title** — setiap kata muncul bergantian dengan scale effect (ease custom `[0.25, 0.46, 0.45, 0.94]`)
+2. **Decorative divider** — garis gradient oranye melebar dari tengah setelah title selesai
+3. **Staggered CTA** — "Lihat Koleksi" muncul duluan, "Tentang Kami" 0.2s kemudian (scale effect)
+4. **Responsive height** — `min-h-[80dvh]` di mobile, tetap `h-screen max-h-[900px]` di desktop (gambar tidak terpotong parah di HP)
+5. **Timeline animasi:** Badge (0.2s) → Title kata/kata (0.4s+) → Garis dekoratif (0.85s) → Subtitle (0.9s) → Tombol 1 (1.2s) → Tombol 2 (1.4s)
+
+**Product Flicker Fix (Mobile):**
+1. **Hapus y-translate** dari entrance animation ProductCard — kard hanya fade-in tanpa geser
+2. **Kurangi delay** `index * 0.1` → `Math.min(index * 0.05, 0.3)` — maks delay cuma 300ms
+3. **Kurangi durasi** 0.5s → 0.4s
+4. **Priority images** — 6 produk pertama `priority={true}` (tidak lazy-load)
+
+**WA Link Refactor:**
+1. **Utility baru** `src/lib/wa.ts` — `buildWaLink()` + `normalizeWaNumber()` (auto 08xx → 628xx)
+2. **Semua komponen** (WhatsAppButton, ProductCard, ContactSection) pakai utility terpusat
+3. **WA umum** (floating button & contact) — kirim pesan default
+4. **WA per produk** — kirim pesan + `\n\nProduk: {nama}` — admin langsung tahu produk yang ditanyakan
+5. **Admin settings** — tambah deskripsi field "Pesan Default WA" biar paham fungsinya
+
+**Auto Reorder Produk:**
+1. **POST /api/products** — auto-fill `sortOrder` dengan `max(sortOrder) + 1` → produk baru otomatis di akhir
+2. **PUT /api/products/[id]** — saat `sortOrder` berubah, produk lain direnumber transaksional:
+   - Naik ke posisi lebih awal → produk di antaranya digeser mundur (+1)
+   - Turun ke posisi lebih akhir → produk di antaranya digeser maju (-1)
+3. **Admin tabel** — tambah kolom "Urutan" yang menampilkan nomor
+4. **Form tambah produk** — auto-fill `sortOrder` dengan angka tertinggi + 1
+
+**Landing page sorting:** tetap `sortOrder: "asc"` + fallback `createdAt: "desc"`
+
+#### Status:
+- ✅ Build berhasil (0 error)
+- ✅ Commit & push: `be90816`
+- ✅ Semua WA link konsisten (utility terpusat)
+- ✅ Auto renumber produk saat urutan diubah
+- ✅ Hero lebih mewah, responsif, tanpa crop berlebihan di HP
+- ✅ Produk tidak flicker/geser saat scroll mobile
+
 1. **Prisma v6 (bukan v7)** — v7 ubah format konfigurasi secara drastis, pilih v6 yang lebih stabil
 2. **SQLite untuk development** — gampang, file-based. PostgreSQL via Supabase untuk production
 3. **Credentials-only auth** — single admin, no OAuth

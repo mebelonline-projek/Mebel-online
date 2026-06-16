@@ -50,7 +50,7 @@ export default function Hero({
     <section
       id="hero"
       ref={ref}
-      className="relative min-h-[80dvh] md:h-screen md:min-h-[600px] md:max-h-[900px] flex items-center justify-center overflow-hidden"
+      className="relative h-screen min-h-[600px] max-h-[900px] flex items-center justify-center overflow-hidden"
     >
       {/* Background Image with Parallax */}
       <motion.div style={{ y: parallaxY, scale }} className="absolute inset-0">
