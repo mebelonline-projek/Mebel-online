@@ -430,8 +430,9 @@ export default function ProductsPage() {
                   placeholder="URL gambar atau upload"
                   className="flex-1"
                 />
-                <label className="cursor-pointer">
+                <div className="relative">
                   <input
+                    id="product-image-upload"
                     type="file"
                     accept="image/*"
                     className="hidden"
@@ -444,7 +445,8 @@ export default function ProductsPage() {
                     type="button"
                     variant="outline"
                     disabled={uploading}
-                    className="rounded-xl"
+                    className="rounded-xl cursor-pointer"
+                    onClick={() => document.getElementById("product-image-upload")?.click()}
                   >
                     {uploading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -452,7 +454,7 @@ export default function ProductsPage() {
                       <ImageIcon className="h-4 w-4" />
                     )}
                   </Button>
-                </label>
+                </div>
               </div>
             </div>
 

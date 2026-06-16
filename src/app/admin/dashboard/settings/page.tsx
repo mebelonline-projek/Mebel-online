@@ -133,8 +133,9 @@ export default function SettingsPage() {
         placeholder={`URL ${label} atau upload`}
         className="flex-1"
       />
-      <label className="cursor-pointer">
+      <div className="relative">
         <input
+          id={`image-upload-${label}`}
           type="file"
           accept="image/*"
           className="hidden"
@@ -143,14 +144,14 @@ export default function SettingsPage() {
             if (file) onUpload(file);
           }}
         />
-        <Button type="button" variant="outline" disabled={uploading === label} className="rounded-xl">
+        <Button type="button" variant="outline" disabled={uploading === label} className="rounded-xl cursor-pointer" onClick={() => document.getElementById(`image-upload-${label}`)?.click()}>
           {uploading === label ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <ImageIcon className="h-4 w-4" />
           )}
         </Button>
-      </label>
+      </div>
     </div>
   );
 
