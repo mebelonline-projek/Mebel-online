@@ -89,7 +89,7 @@ export default function Hero({
         >
           <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/10 backdrop-blur-sm rounded-full text-white/80 text-sm border border-white/10">
             <span className="w-2 h-2 rounded-full bg-brand-orange animate-pulse" />
-            Mebel Online Terpercaya
+            Toko Furnitur Terpercaya
           </span>
         </motion.div>
 
