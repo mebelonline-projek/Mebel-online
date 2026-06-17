@@ -66,6 +66,7 @@ export default async function HomePage() {
   const parsedProducts = products.map((p) => ({
     ...p,
     images: p.images ? JSON.parse(p.images) : [],
+    variants: p.variants ? JSON.parse(p.variants) : [],
   }));
 
   const jsonLd = {

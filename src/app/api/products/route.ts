@@ -49,10 +49,11 @@ export async function GET(request: Request) {
       prisma.product.count({ where }),
     ]);
 
-    // Parse images JSON string to array
+    // Parse images & variants JSON strings to arrays
     const parsedProducts = products.map((p) => ({
       ...p,
       images: p.images ? JSON.parse(p.images) : [],
+      variants: p.variants ? JSON.parse(p.variants) : [],
     }));
 
     return NextResponse.json({
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
     if (error) return error;
 
     const body = await request.json();
-    const { name, description, image, images, categoryId, sortOrder } = body;
+    const { name, description, image, images, variants, categoryId, sortOrder } = body;
 
     if (!name || !categoryId) {
       return NextResponse.json(
@@ -112,6 +113,7 @@ export async function POST(request: Request) {
         description,
         image: image ?? null,
         images: images ? JSON.stringify(images) : "[]",
+        variants: variants ? JSON.stringify(variants) : "[]",
         categoryId,
         sortOrder: nextSortOrder,
       },

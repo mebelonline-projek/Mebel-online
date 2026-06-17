@@ -50,6 +50,7 @@ model Product {
   images      String?  // JSON array of additional image URLs
   categoryId  String
   category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  variants    String?  // JSON array of product variants (color, size, material, etc.)
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())

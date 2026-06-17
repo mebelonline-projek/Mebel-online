@@ -28,6 +28,7 @@ export async function GET(
       data: {
         ...product,
         images: product.images ? JSON.parse(product.images) : [],
+        variants: product.variants ? JSON.parse(product.variants) : [],
       },
     });
   } catch (error) {
@@ -51,7 +52,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, description, image, images, categoryId, isActive, sortOrder } = body;
+    const { name, description, image, images, variants, categoryId, isActive, sortOrder } = body;
 
     if (!name || !categoryId) {
       return NextResponse.json(
@@ -117,6 +118,7 @@ export async function PUT(
         description,
         image: image ?? existing.image,
         images: images ? JSON.stringify(images) : existing.images,
+        variants: variants ? JSON.stringify(variants) : existing.variants,
         categoryId,
         isActive: isActive ?? existing.isActive,
         sortOrder: sortOrder ?? existing.sortOrder,

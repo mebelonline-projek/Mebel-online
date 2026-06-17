@@ -45,6 +45,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ListOrdered,
+  X,
 } from "lucide-react";
 
 const PAGE_SIZE = 50;
@@ -62,6 +63,7 @@ interface Product {
   description: string | null;
   image: string | null;
   images: string[];
+  variants: { type: string; name: string; options: { label: string; value: string; hex?: string }[] }[];
   categoryId: string;
   category: { name: string; slug: string };
   isActive: boolean;
@@ -83,6 +85,7 @@ const emptyForm = {
   categoryId: "",
   sortOrder: 0,
   isActive: true,
+  variants: [] as { type: string; name: string; options: { label: string; value: string; hex?: string }[] }[],
 };
 
 export default function ProductsPage() {
@@ -182,7 +185,7 @@ export default function ProductsPage() {
     const maxSort = products.length > 0
       ? Math.max(...products.map((p) => p.sortOrder))
       : 0;
-    setForm({ ...emptyForm, sortOrder: maxSort + 1 });
+    setForm({ ...emptyForm, variants: [], sortOrder: maxSort + 1 });
     setIsDialogOpen(true);
   };
 
@@ -197,6 +200,7 @@ export default function ProductsPage() {
       categoryId: product.categoryId,
       sortOrder: position > 0 ? position : product.sortOrder,
       isActive: product.isActive,
+      variants: product.variants ?? [],
     });
     setIsDialogOpen(true);
   };
@@ -630,6 +634,130 @@ export default function ProductsPage() {
                 placeholder="Deskripsi produk (opsional)"
                 rows={3}
               />
+            </div>
+
+            {/* ── Variant Management ── */}
+            <div className="space-y-3 border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">Varian Produk</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const name = prompt("Nama grup varian (contoh: Warna, Ukuran, Bahan):");
+                    if (!name?.trim()) return;
+                    const type = prompt("Tipe varian (color / size / material / text):", "color") as "color" | "size" | "material" | "text" | null;
+                    if (!type || !["color", "size", "material", "text"].includes(type)) return;
+                    setForm((p) => ({
+                      ...p,
+                      variants: [...p.variants, { type, name: name.trim(), options: [] }],
+                    }));
+                  }}
+                  className="rounded-xl h-8 text-xs"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Tambah Varian
+                </Button>
+              </div>
+
+              {form.variants.length === 0 && (
+                <p className="text-xs text-gray-400 italic">
+                  Belum ada varian. Klik "Tambah Varian" untuk menambahkan pilihan warna, ukuran, atau bahan.
+                </p>
+              )}
+
+              {form.variants.map((group, gi) => (
+                <div
+                  key={gi}
+                  className="rounded-xl border border-gray-200 bg-gray-50/50 p-3 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider px-2 py-0.5 rounded-full bg-white border">
+                        {group.type}
+                      </span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {group.name}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((p) => ({
+                          ...p,
+                          variants: p.variants.filter((_, i) => i !== gi),
+                        }))
+                      }
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Options list */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {group.options.map((opt, oi) => (
+                      <span
+                        key={oi}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border text-xs"
+                      >
+                        {group.type === "color" && opt.hex && (
+                          <span
+                            className="h-3.5 w-3.5 rounded-full"
+                            style={{ backgroundColor: opt.hex }}
+                          />
+                        )}
+                        {opt.label}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((p) => {
+                              const updated = [...p.variants];
+                              updated[gi] = {
+                                ...updated[gi],
+                                options: updated[gi].options.filter((_, i) => i !== oi),
+                              };
+                              return { ...p, variants: updated };
+                            })
+                          }
+                          className="text-gray-300 hover:text-red-400 ml-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const label = prompt("Label opsi (contoh: Coklat, M, Kayu Jati):");
+                        if (!label?.trim()) return;
+                        const value = label.toLowerCase().replace(/\s+/g, "-");
+                        let hex: string | undefined;
+                        if (group.type === "color") {
+                          const input = prompt("Hex color code (contoh: #8B4513):", "#");
+                          if (input?.trim()) hex = input.trim();
+                        }
+                        setForm((p) => {
+                          const updated = [...p.variants];
+                          updated[gi] = {
+                            ...updated[gi],
+                            options: [
+                              ...updated[gi].options,
+                              { label: label.trim(), value, ...(hex ? { hex } : {}) },
+                            ],
+                          };
+                          return { ...p, variants: updated };
+                        });
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-gray-300 text-xs text-gray-400 hover:text-gray-600 hover:border-gray-400 transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Tambah opsi
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div className="flex items-center gap-6">
