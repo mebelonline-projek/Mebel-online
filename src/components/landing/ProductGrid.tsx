@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Loader2, ChevronDown } from "lucide-react";
 import ProductCard from "./ProductCard";
 import { Button } from "@/components/ui/button";
@@ -126,26 +126,20 @@ export default function ProductGrid({
         </motion.div>
 
         {/* Product Grid */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeCategory}
-            initial={{ opacity: 0, y: prefersReduced ? 0 : 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: prefersReduced ? 1 : 0, y: prefersReduced ? 0 : -20 }}
-            transition={{ duration: prefersReduced ? 0 : 0.3 }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-          >
-            {filteredProducts.map((product, index) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                waNumber={waNumber}
-                waMessage={waMessage}
-                priority={index < 6}
-              />
-            ))}
-          </motion.div>
-        </AnimatePresence>
+        <motion.div
+          layout
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+        >
+          {filteredProducts.map((product, index) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              waNumber={waNumber}
+              waMessage={waMessage}
+              priority={index < 6}
+            />
+          ))}
+        </motion.div>
 
         {/* Empty State */}
         {visibleCount === 0 && (

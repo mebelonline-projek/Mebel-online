@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
 import { ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { buildWaLink } from "@/lib/wa";
 import type { ProductWithCategory } from "@/types";
 
@@ -22,6 +24,8 @@ export default function ProductCard({
   priority = false,
 }: ProductCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const prefersReduced = useReducedMotion();
   const waLink = waNumber
     ? buildWaLink(
         waNumber,
@@ -32,22 +36,38 @@ export default function ProductCard({
     : "#";
 
   return (
-    <div className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300">
+    <motion.article
+      initial={prefersReduced ? false : { opacity: 0, y: 16, scale: 0.98 }}
+      whileInView={prefersReduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, amount: 0.25 }}
+      transition={{ duration: prefersReduced ? 0 : 0.45, ease: "easeOut" }}
+      className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 will-change-transform"
+    >
       {/* Image Container */}
       <div className="relative aspect-[4/3] overflow-hidden bg-gray-50">
-        {product.image ? (
-          <Image
-            src={product.image}
-            alt={product.name}
-            fill
-            priority={priority}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            onLoad={() => setImageLoaded(true)}
-            className={`object-cover group-hover:scale-105 transition-transform duration-700 ${
+        {product.image && !imageError ? (
+          <>
+            {!imageLoaded && (
+              <div className="absolute inset-0">
+                <Skeleton className="h-full w-full rounded-none bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100" />
+              </div>
+            )}
+            <Image
+              src={product.image}
+              alt={product.name}
+              fill
+              priority={priority}
+              loading={priority ? "eager" : "lazy"}
+              decoding="async"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              onLoad={() => setImageLoaded(true)}
+              onError={() => setImageError(true)}
+              className={`object-cover group-hover:scale-105 transition-transform duration-700 ${
               imageLoaded ? "opacity-100" : "opacity-0"
             }`}
-            style={{ transition: "opacity 0.3s ease" }}
-          />
+              style={{ transition: "opacity 0.25s ease" }}
+            />
+          </>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <ShoppingBag className="h-12 w-12 text-gray-300" />
@@ -126,6 +146,6 @@ export default function ProductCard({
           </a>
         </div>
       </div>
-    </div>
+    </motion.article>
   );
 }
