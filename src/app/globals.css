@@ -157,9 +157,15 @@
   }
 }
 
-/* CSS-only entrance (dipakai untuk fallback / prefer-reduced-motion) */
+/* GPU compositing — force GPU layer untuk cegah flicker mobile */
+.gpu-layer {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* prefers-reduced-motion fallback */
 @media (prefers-reduced-motion: reduce) {
-  .animate-card {
+  .gpu-layer {
     opacity: 1 !important;
     transform: none !important;
   }
