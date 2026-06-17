@@ -65,7 +65,7 @@ export default function ProductGrid({
   const showLoadMore = hasMore && activeCategory === "semua";
 
   return (
-    <section id="katalog" className="py-20 sm:py-28 bg-white">
+    <section id="katalog" className="py-20 sm:py-28 bg-white overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <motion.div
@@ -134,7 +134,7 @@ export default function ProductGrid({
               waNumber={waNumber}
               waMessage={waMessage}
               priority={index < 6}
-              delayMs={Math.min(index * 20, 150)}
+              delayMs={Math.min(index * 25, 200)}
             />
           ))}
         </div>

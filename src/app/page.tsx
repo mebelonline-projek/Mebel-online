@@ -93,7 +93,7 @@ export default async function HomePage() {
   };
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen overflow-x-hidden">
       {/* JSON-LD Structured Data */}
       <script
         type="application/ld+json"
