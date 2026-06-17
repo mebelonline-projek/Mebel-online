@@ -22,7 +22,6 @@ export default function ProductCard({
   waMessage = "Halo, saya tertarik dengan produk ini.",
   priority = false,
 }: ProductCardProps) {
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const prefersReduced = useReducedMotion();
   const waLink = waNumber
@@ -36,11 +35,11 @@ export default function ProductCard({
 
   return (
     <motion.article
-      initial={prefersReduced ? false : { opacity: 0, y: 16, scale: 0.98 }}
-      whileInView={prefersReduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, amount: 0.25 }}
-      transition={{ duration: prefersReduced ? 0 : 0.45, ease: "easeOut" }}
-      className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 will-change-transform"
+      initial={prefersReduced ? false : { opacity: 0 }}
+      whileInView={prefersReduced ? undefined : { opacity: 1 }}
+      viewport={{ once: true, margin: "-30px" }}
+      transition={{ duration: prefersReduced ? 0 : 0.4, ease: "easeOut" }}
+      className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300"
     >
       {/* Image Container */}
       <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
@@ -51,14 +50,9 @@ export default function ProductCard({
             fill
             priority={priority}
             loading={priority ? "eager" : "lazy"}
-            decoding="async"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            onLoad={() => setImageLoaded(true)}
             onError={() => setImageError(true)}
-            className={`object-cover group-hover:scale-105 transition-transform duration-700 ${
-              imageLoaded ? "opacity-100" : "opacity-0"
-            }`}
-            style={{ transition: "opacity 0.3s ease" }}
+            className="object-cover group-hover:scale-105 transition-transform duration-700"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
