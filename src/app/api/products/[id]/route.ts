@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/api-auth";
+import { deleteFromSupabase } from "@/lib/upload";
 
 // GET /api/products/[id]
 export async function GET(
@@ -97,7 +98,16 @@ export async function PUT(
 
         await tx.product.update({
           where: { id },
-          data: { sortOrder: newSort },
+          data: {
+            name,
+            description,
+            image: image ?? existing.image,
+            images: images ? JSON.stringify(images) : existing.images,
+            variants: variants ? JSON.stringify(variants) : existing.variants,
+            categoryId,
+            isActive: isActive ?? existing.isActive,
+            sortOrder: newSort,
+          },
         });
       });
 
@@ -107,7 +117,19 @@ export async function PUT(
         include: { category: { select: { name: true, slug: true } } },
       });
 
-      return NextResponse.json({ success: true, data: updated });
+      // Hapus foto lama dari Supabase kalau image berubah
+      if (image !== undefined && image !== existing.image && existing.image) {
+        await deleteFromSupabase(existing.image);
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...updated,
+          images: updated?.images ? JSON.parse(updated.images) : [],
+          variants: updated?.variants ? JSON.parse(updated.variants) : [],
+        },
+      });
     }
 
     // Tanpa perubahan sortOrder — update biasa
@@ -127,6 +149,11 @@ export async function PUT(
         category: { select: { name: true, slug: true } },
       },
     });
+
+    // Hapus foto lama dari Supabase kalau image berubah
+    if (image !== undefined && image !== existing.image && existing.image) {
+      await deleteFromSupabase(existing.image);
+    }
 
     return NextResponse.json({ success: true, data: product });
   } catch (error) {
@@ -156,6 +183,15 @@ export async function DELETE(
         { success: false, error: "Produk tidak ditemukan." },
         { status: 404 }
       );
+    }
+
+    // Hapus foto dari Supabase sebelum hapus record
+    if (existing.image) {
+      await deleteFromSupabase(existing.image);
+    }
+    if (existing.images) {
+      const imageList = JSON.parse(existing.images) as string[];
+      await Promise.all(imageList.map((img) => deleteFromSupabase(img)));
     }
 
     await prisma.product.delete({ where: { id } });

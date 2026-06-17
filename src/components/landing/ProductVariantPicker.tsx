@@ -45,7 +45,10 @@ export default function ProductVariantPicker({
                           ? "ring-2 ring-brand-maroon ring-offset-2"
                           : "ring-1 ring-gray-200 hover:ring-gray-400"
                       }`}
-                      style={{ backgroundColor: opt.hex || "#ddd" }}
+                      style={{
+                        backgroundColor: opt.hex || "#ddd",
+                        boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.12)",
+                      }}
                     />
                   </motion.button>
                 );

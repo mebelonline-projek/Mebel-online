@@ -33,6 +33,7 @@ import {
   Loader2,
   Tags,
   Package,
+  ListOrdered,
 } from "lucide-react";
 
 interface Category {
@@ -55,6 +56,7 @@ export default function CategoriesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [categoryProducts, setCategoryProducts] = useState<{ id: string; name: string; sortOrder: number }[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [isRenumbering, setIsRenumbering] = useState(false);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -68,12 +70,32 @@ export default function CategoriesPage() {
     }
   }, []);
 
+  const handleRenumber = useCallback(async () => {
+    if (isRenumbering) return;
+    setIsRenumbering(true);
+    try {
+      const res = await fetch("/api/categories/renumber", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message);
+        fetchCategories();
+      } else {
+        toast.error(data.error || "Gagal mengurutkan ulang");
+      }
+    } catch {
+      toast.error("Gagal mengurutkan ulang");
+    } finally {
+      setIsRenumbering(false);
+    }
+  }, [isRenumbering, fetchCategories]);
+
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
 
   const openCreate = () => {
     setEditingCategory(null);
+    // Auto-fill sortOrder: taruh di akhir (backend auto-fill via max+1, kirim 0)
     setForm({ name: "", description: "", sortOrder: 0 });
     setIsDialogOpen(true);
   };
@@ -198,13 +220,29 @@ export default function CategoriesPage() {
           <p className="text-sm text-gray-500">
             {categories.length} kategori
           </p>
-          <Button
-            onClick={openCreate}
-            className="bg-brand-maroon hover:bg-brand-maroon-dark text-white rounded-xl"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Tambah Kategori
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRenumber}
+              disabled={isRenumbering}
+              className="rounded-xl h-10 text-xs"
+            >
+              {isRenumbering ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <ListOrdered className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Urutkan Ulang
+            </Button>
+            <Button
+              onClick={openCreate}
+              className="bg-brand-maroon hover:bg-brand-maroon-dark text-white rounded-xl"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Tambah Kategori
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -319,6 +357,7 @@ export default function CategoriesPage() {
               <Input
                 id="sortOrder"
                 type="number"
+                min={1}
                 value={form.sortOrder}
                 onChange={(e) =>
                   setForm((p) => ({
@@ -328,6 +367,9 @@ export default function CategoriesPage() {
                 }
                 className="h-9 mt-1"
               />
+              <p className="text-[10px] text-gray-400 leading-tight mt-1">
+                Nomor kecil = tampil lebih dulu. Kategori lain akan menyesuaikan otomatis.
+              </p>
             </div>
 
             {/* Daftar Produk dalam kategori ini */}

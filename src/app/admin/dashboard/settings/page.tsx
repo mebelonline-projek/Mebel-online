@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import AdminHeader from "@/components/admin/AdminHeader";
+import ImageUploader from "@/components/admin/ImageUploader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, ImageIcon } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import type { SiteSettings, SocialMediaItem } from "@/types";
 
 const defaultSettings: SiteSettings = {
@@ -33,7 +34,6 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<SiteSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [uploading, setUploading] = useState<string | null>(null);
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -74,32 +74,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleUpload = async (file: File, key: string) => {
-    setUploading(key);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "settings");
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        setSettings((prev) => ({ ...prev, [key]: data.data.url }));
-        toast.success("Gambar berhasil diupload");
-      } else {
-        toast.error(data.error || "Gagal upload");
-      }
-    } catch {
-      toast.error("Gagal upload gambar");
-    } finally {
-      setUploading(null);
-    }
-  };
-
   const addSocialMedia = () => {
     setSettings((prev) => ({
       ...prev,
@@ -125,36 +99,6 @@ export default function SettingsPage() {
     }));
   };
 
-  const ImageUpload = ({ value, onUpload, label, onChange }: { value: string; onUpload: (f: File) => void; label: string; onChange: (val: string) => void }) => (
-    <div className="flex items-center gap-3">
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={`URL ${label} atau upload`}
-        className="flex-1"
-      />
-      <div className="relative">
-        <input
-          id={`image-upload-${label}`}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) onUpload(file);
-          }}
-        />
-        <Button type="button" variant="outline" disabled={uploading === label} className="rounded-xl cursor-pointer" onClick={() => document.getElementById(`image-upload-${label}`)?.click()}>
-          {uploading === label ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <ImageIcon className="h-4 w-4" />
-          )}
-        </Button>
-      </div>
-    </div>
-  );
-
   if (isLoading) {
     return (
       <>
@@ -179,11 +123,9 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-2">
               <Label>Logo Toko</Label>
-              <ImageUpload
-                value={settings.site_logo}
-                onUpload={(f) => handleUpload(f, "site_logo")}
-                onChange={(val) => setSettings((p) => ({ ...p, site_logo: val }))}
-                label="site_logo"
+              <ImageUploader
+                currentImage={settings.site_logo}
+                onImageUploaded={(url) => setSettings((p) => ({ ...p, site_logo: url }))}
               />
             </div>
             <div className="space-y-2">
@@ -213,11 +155,9 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label>Gambar Hero</Label>
-              <ImageUpload
-                value={settings.hero_image}
-                onUpload={(f) => handleUpload(f, "hero_image")}
-                onChange={(val) => setSettings((p) => ({ ...p, hero_image: val }))}
-                label="hero_image"
+              <ImageUploader
+                currentImage={settings.hero_image}
+                onImageUploaded={(url) => setSettings((p) => ({ ...p, hero_image: url }))}
               />
             </div>
             <div className="md:col-span-2 space-y-2">
@@ -248,11 +188,9 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label>Gambar Tentang</Label>
-              <ImageUpload
-                value={settings.about_image}
-                onUpload={(f) => handleUpload(f, "about_image")}
-                onChange={(val) => setSettings((p) => ({ ...p, about_image: val }))}
-                label="about_image"
+              <ImageUploader
+                currentImage={settings.about_image}
+                onImageUploaded={(url) => setSettings((p) => ({ ...p, about_image: url }))}
               />
             </div>
             <div className="md:col-span-2 space-y-2">

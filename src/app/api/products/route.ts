@@ -94,11 +94,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Auto-fill sortOrder: produk baru ditaruh di urutan paling akhir
-    const maxSortOrder = await prisma.product.aggregate({
-      _max: { sortOrder: true },
-    });
-    const nextSortOrder = sortOrder ?? (maxSortOrder._max.sortOrder ?? 0) + 1;
+    // Auto-fill sortOrder: jika 0 atau tidak dikirim, taruh di urutan paling akhir
+    const nextSortOrder =
+      sortOrder && sortOrder > 0
+        ? sortOrder
+        : ((await prisma.product.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? 0) + 1;
 
     // Generate slug
     const slug = name

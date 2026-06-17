@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import AdminHeader from "@/components/admin/AdminHeader";
+import ImageUploader from "@/components/admin/ImageUploader";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,7 +100,6 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [isRenumbering, setIsRenumbering] = useState(false);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -107,6 +107,13 @@ export default function ProductsPage() {
     total: 0,
     totalPages: 0,
   });
+  // Variant inline form states
+  const [addingGroup, setAddingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupType, setNewGroupType] = useState<"color" | "size" | "material" | "text">("color");
+  const [addingOptionFor, setAddingOptionFor] = useState<number | null>(null);
+  const [newOptLabel, setNewOptLabel] = useState("");
+  const [newOptHex, setNewOptHex] = useState("");
 
   const fetchProducts = useCallback(async (page: number) => {
     setIsLoadingMore(true);
@@ -181,24 +188,20 @@ export default function ProductsPage() {
 
   const openCreate = () => {
     setEditingProduct(null);
-    // Auto-fill sortOrder dengan angka tertinggi + 1
-    const maxSort = products.length > 0
-      ? Math.max(...products.map((p) => p.sortOrder))
-      : 0;
-    setForm({ ...emptyForm, variants: [], sortOrder: maxSort + 1 });
+    // sortOrder 0 → backend auto-fill dengan nomor tertinggi +1
+    setForm({ ...emptyForm, variants: [], sortOrder: 0 });
     setIsDialogOpen(true);
   };
 
   const openEdit = (product: Product) => {
     setEditingProduct(product);
-    // Hitung nomor urut dari posisinya di daftar tampilan
-    const position = filteredProducts.findIndex((p) => p.id === product.id) + 1;
+    // Pakai sortOrder asli dari database, bukan posisi di daftar filter
     setForm({
       name: product.name,
       description: product.description ?? "",
       image: product.image ?? "",
       categoryId: product.categoryId,
-      sortOrder: position > 0 ? position : product.sortOrder,
+      sortOrder: product.sortOrder,
       isActive: product.isActive,
       variants: product.variants ?? [],
     });
@@ -264,32 +267,6 @@ export default function ProductsPage() {
       }
     } catch {
       toast.error("Terjadi kesalahan");
-    }
-  };
-
-  const handleUploadImage = async (file: File) => {
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "products");
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        setForm((prev) => ({ ...prev, image: data.data.url }));
-        toast.success("Gambar berhasil diupload");
-      } else {
-        toast.error(data.error || "Gagal upload gambar");
-      }
-    } catch {
-      toast.error("Gagal upload gambar");
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -545,7 +522,7 @@ export default function ProductsPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingProduct ? "Edit Produk" : "Tambah Produk"}
@@ -576,7 +553,10 @@ export default function ProductsPage() {
                 onValueChange={(v) => setForm((p) => ({ ...p, categoryId: v ?? "" }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Pilih kategori" />
+                  <SelectValue>
+                    {categories.find((c) => c.id === form.categoryId)?.name ||
+                      "Pilih kategori"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((cat) => (
@@ -590,39 +570,10 @@ export default function ProductsPage() {
 
             <div className="space-y-2">
               <Label>Gambar Produk</Label>
-              <div className="flex items-center gap-3">
-                <Input
-                  value={form.image}
-                  onChange={(e) => setForm((p) => ({ ...p, image: e.target.value }))}
-                  placeholder="URL gambar atau upload"
-                  className="flex-1"
-                />
-                <div className="relative">
-                  <input
-                    id="product-image-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleUploadImage(file);
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={uploading}
-                    className="rounded-xl cursor-pointer"
-                    onClick={() => document.getElementById("product-image-upload")?.click()}
-                  >
-                    {uploading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ImageIcon className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
+              <ImageUploader
+                currentImage={form.image}
+                onImageUploaded={(url) => setForm((p) => ({ ...p, image: url }))}
+              />
             </div>
 
             <div className="space-y-2">
@@ -645,14 +596,9 @@ export default function ProductsPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const name = prompt("Nama grup varian (contoh: Warna, Ukuran, Bahan):");
-                    if (!name?.trim()) return;
-                    const type = prompt("Tipe varian (color / size / material / text):", "color") as "color" | "size" | "material" | "text" | null;
-                    if (!type || !["color", "size", "material", "text"].includes(type)) return;
-                    setForm((p) => ({
-                      ...p,
-                      variants: [...p.variants, { type, name: name.trim(), options: [] }],
-                    }));
+                    setNewGroupName("");
+                    setNewGroupType("color");
+                    setAddingGroup(true);
                   }}
                   className="rounded-xl h-8 text-xs"
                 >
@@ -660,6 +606,65 @@ export default function ProductsPage() {
                   Tambah Varian
                 </Button>
               </div>
+
+              {/* Inline form: tambah grup varian baru */}
+              {addingGroup && (
+                <div className="rounded-xl border border-brand-maroon/30 bg-brand-maroon/5 p-3 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-gray-500">Nama Grup</Label>
+                      <Input
+                        value={newGroupName}
+                        onChange={(e) => setNewGroupName(e.target.value)}
+                        placeholder="Contoh: Warna, Ukuran"
+                        className="h-8 text-sm mt-1"
+                        autoFocus
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">Tipe</Label>
+                      <Select value={newGroupType} onValueChange={(v) => setNewGroupType(v as typeof newGroupType)}>
+                        <SelectTrigger className="h-8 text-sm mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="color">Color (circle swatches)</SelectItem>
+                          <SelectItem value="size">Size (pill buttons)</SelectItem>
+                          <SelectItem value="material">Material (pill buttons)</SelectItem>
+                          <SelectItem value="text">Text (pill buttons)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAddingGroup(false)}
+                      className="h-7 text-xs"
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!newGroupName.trim()}
+                      onClick={() => {
+                        setForm((p) => ({
+                          ...p,
+                          variants: [...p.variants, { type: newGroupType, name: newGroupName.trim(), options: [] }],
+                        }));
+                        setAddingGroup(false);
+                        setNewGroupName("");
+                      }}
+                      className="h-7 text-xs bg-brand-maroon hover:bg-brand-maroon-dark text-white"
+                    >
+                      Simpan
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {form.variants.length === 0 && (
                 <p className="text-xs text-gray-400 italic">
@@ -730,25 +735,9 @@ export default function ProductsPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const label = prompt("Label opsi (contoh: Coklat, M, Kayu Jati):");
-                        if (!label?.trim()) return;
-                        const value = label.toLowerCase().replace(/\s+/g, "-");
-                        let hex: string | undefined;
-                        if (group.type === "color") {
-                          const input = prompt("Hex color code (contoh: #8B4513):", "#");
-                          if (input?.trim()) hex = input.trim();
-                        }
-                        setForm((p) => {
-                          const updated = [...p.variants];
-                          updated[gi] = {
-                            ...updated[gi],
-                            options: [
-                              ...updated[gi].options,
-                              { label: label.trim(), value, ...(hex ? { hex } : {}) },
-                            ],
-                          };
-                          return { ...p, variants: updated };
-                        });
+                        setAddingOptionFor(gi);
+                        setNewOptLabel("");
+                        setNewOptHex(group.type === "color" ? "#" : "");
                       }}
                       className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-gray-300 text-xs text-gray-400 hover:text-gray-600 hover:border-gray-400 transition-colors"
                     >
@@ -756,6 +745,81 @@ export default function ProductsPage() {
                       Tambah opsi
                     </button>
                   </div>
+
+                  {/* Inline form: tambah opsi baru */}
+                  {addingOptionFor === gi && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-2 space-y-2 mt-1">
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <Label className="text-xs text-gray-500">Label</Label>
+                          <Input
+                            value={newOptLabel}
+                            onChange={(e) => setNewOptLabel(e.target.value)}
+                            placeholder={group.type === "color" ? "Coklat" : group.type === "size" ? "M" : "Kayu Jati"}
+                            className="h-8 text-sm mt-0.5"
+                            autoFocus
+                          />
+                        </div>
+                        {group.type === "color" && (
+                          <div className="w-20">
+                            <Label className="text-xs text-gray-500">Hex</Label>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Input
+                                value={newOptHex}
+                                onChange={(e) => setNewOptHex(e.target.value)}
+                                placeholder="#8B4513"
+                                className="h-8 text-sm font-mono"
+                              />
+                              {newOptHex.match(/^#[0-9a-fA-F]{6}$/) && (
+                                <span
+                                  className="h-6 w-6 rounded-full border shrink-0"
+                                  style={{ backgroundColor: newOptHex }}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!newOptLabel.trim()}
+                          onClick={() => {
+                            const value = newOptLabel.toLowerCase().replace(/\s+/g, "-");
+                            let hex: string | undefined;
+                            if (group.type === "color" && newOptHex.match(/^#[0-9a-fA-F]{6}$/)) {
+                              hex = newOptHex;
+                            }
+                            setForm((p) => {
+                              const updated = [...p.variants];
+                              updated[gi] = {
+                                ...updated[gi],
+                                options: [
+                                  ...updated[gi].options,
+                                  { label: newOptLabel.trim(), value, ...(hex ? { hex } : {}) },
+                                ],
+                              };
+                              return { ...p, variants: updated };
+                            });
+                            setAddingOptionFor(null);
+                            setNewOptLabel("");
+                            setNewOptHex("");
+                          }}
+                          className="h-8 text-xs bg-brand-maroon hover:bg-brand-maroon-dark text-white shrink-0"
+                        >
+                          Tambah
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setAddingOptionFor(null)}
+                          className="h-8 text-xs shrink-0"
+                        >
+                          Batal
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -218,10 +218,67 @@
 6. **Database-based rate limiter** — tadinya in-memory (hilang saat restart), sekarang pindah ke tabel `RateLimit` di Prisma. Cocok untuk Vercel serverless. Fail open jika DB error.
 7. **GitHub/Vercel/Supabase akun klien** — semuanya pake akun terpisah dari developer (ownership jelas untuk handover)
 8. **Status .env:**
-   - ✅ `DATABASE_URL` + `DIRECT_URL` — PostgreSQL Supabase
+   - ✅ `DATABASE_URL` + `DIRECT_URL` — PostgreSQL Supabase (SQLite untuk dev lokal)
    - ✅ `NEXT_PUBLIC_SUPABASE_URL` + `keys` — Supabase Storage
    - ⚠️ `RESEND_API_KEY` — masih placeholder
    - ⚠️ `AUTH_SECRET` — masih placeholder (generate ulang sebelum production)
+9. **Field `variants` di Product** — JSON field, fleksibel untuk tipe varian berbeda tiap produk. Struktur: `[{ type, name, options: [{ label, value, hex?, image? }] }]`
+10. **Database switching .env** — file `.env` sudah berisi kedua konfigurasi (SQLite & PostgreSQL), tinggal comment/uncomment. `schema.prisma` juga perlu ganti provider `sqlite` ↔ `postgresql` + `npx prisma generate`
+
+---
+
+### [2026-06-17] — Feat: Varian Selector (Color, Size, Material) di Product Card
+
+#### Yang dilakukan:
+
+**Data Model:**
+1. **Prisma schema** — tambah field `variants String?` (JSON) di model Product
+2. **Migration file** — `prisma/migrations/20260617120024_add_variants/migration.sql`
+   - SQL: `ALTER TABLE "Product" ADD COLUMN "variants" TEXT`
+3. **Types** — `VariantOption`, `ProductVariant` interface di `src/types/index.ts`, update `ProductWithCategory`
+4. **API routes** — parse `variants` JSON di GET, simpan di POST/PUT (handler sudah ada)
+
+**UI — Variant Picker:**
+1. **`ProductVariantPicker.tsx`** (BARU) — komponen reuseable:
+   - **Color type** → circle swatches (24px, ring-2 brand-maroon saat selected, animasi scale)
+   - **Size/Material/Text type** → pill button (filled maroon saat selected, outline saat idle)
+   - Aksesibilitas: `aria-label`, keyboard navigable
+2. **`ProductCard.tsx`** — integrasi variant picker di bawah deskripsi:
+   - WA message otomatis sertakan varian yang dipilih: `\nVarian: Warna=Coklat, Ukuran=M`
+   - Default pilih opsi pertama setiap grup
+
+**Admin — Kelola Varian:**
+1. **`products/page.tsx`** — section "Varian Produk" di dialog create/edit:
+   - Tombol "Tambah Varian" → inline form: nama grup + pilih tipe (color/size/material/text)
+   - Tiap grup menampilkan options sebagai chips dengan preview warna
+   - Tombol "Tambah opsi" → inline form: label + hex color (khusus color) + preview
+   - Hapus grup/opsi via tombol X
+
+**Bug Fixes:**
+1. 🔴 **API PUT jalur renumber tidak simpan field lain** — saat `sortOrder` berubah, hanya sortOrder yang diupdate. Semua field (variants, name, description, dll) ikut hilang. Diperbaiki dengan update semua field di dalam `$transaction`.
+2. 🔴 **`prompt()` tidak didukung Turbopack** — ganti prompt JavaScript dengan inline form proper (input + select + tombol simpan/batal)
+
+#### File Baru:
+- `src/components/landing/ProductVariantPicker.tsx`
+- `prisma/migrations/20260617120024_add_variants/migration.sql`
+- `prisma/migrations/migration_lock.toml`
+
+#### File Diubah:
+- `prisma/schema.prisma` — +variants field
+- `src/types/index.ts` — +VariantOption, ProductVariant
+- `src/app/page.tsx` — parse variants di SSR
+- `src/app/api/products/route.ts` — handle variants
+- `src/app/api/products/[id]/route.ts` — handle variants + fix renumber bug
+- `src/components/landing/ProductCard.tsx` — integrasi variant picker
+- `src/app/admin/dashboard/products/page.tsx` — UI kelola varian
+
+#### Status:
+- ✅ Branch: `feature/variant-selector` (terpisah dari master)
+- ✅ Build: TypeScript clean (0 error)
+- ✅ Database: SQLite siap testing, PostgreSQL via migration
+- ⚠️ Migration belum dijalankan ke Supabase — perlu `npx prisma migrate deploy` saat DB reachable
+- ⚠️ Seed data belum punya variants (data masih dari seed lama)
+- ⚠️ Database switch antara SQLite & PostgreSQL perlu manual .env + schema.provider
 
 ---
 
@@ -287,6 +344,82 @@
 
 ---
 
+### [2026-06-17] — Final Fix: Sinkronisasi Sort Order (Produk & Kategori)
+
+#### Yang dilakukan:
+
+**Masalah:** SortOrder tidak sinkron di 3 tempat (admin produk, admin kategori, landing page). Seed semua 0, openEdit pakai posisi filter (salah), kategori tidak punya renumber logic.
+
+**Perbaikan (8 file):**
+
+1. **`prisma/seed.ts`** — Produk seed diberi `sortOrder: i + 1` (1–16), sebelumnya semua 0.
+
+2. **`src/app/api/products/route.ts`** — POST auto-fill: jika sortOrder 0 atau tidak dikirim, backend hitung `max + 1`. Produk baru otomatis di akhir.
+
+3. **`src/app/admin/dashboard/products/page.tsx`** — Fix 2 bug:
+   - `openEdit`: pakai `product.sortOrder` **asli dari database** (sebelumnya pakai `filteredProducts.findIndex()` yang salah saat ada search filter)
+   - `openCreate`: kirim `sortOrder: 0` → backend auto-fill (sebelumnya hitung max dari page saat ini, rawan duplikat)
+
+4. **`src/app/api/categories/route.ts`** — POST auto-fill: jika 0, hitung `max + 1` (sama seperti produk).
+
+5. **`src/app/api/categories/route.ts`** — PUT renumber logic BARU: saat sortOrder kategori berubah, kategori lain di antaranya otomatis bergeser naik/turun dalam `$transaction` — logika identik dengan produk.
+
+6. **`src/app/api/categories/renumber/route.ts`** — Endpoint BARU: `POST /api/categories/renumber` — beri nomor urut 1,2,3... ke semua kategori.
+
+7. **`src/app/admin/dashboard/categories/page.tsx`** — Tambah tombol "Urutkan Ulang" + helper text pada field urutan.
+
+8. **Landing page** — Tidak perlu diubah. Sudah benar `orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }]` + `revalidate: 60`, perubahan admin otomatis tampil.
+
+#### Status:
+- ✅ Build berhasil (0 error, 0 warning)
+- ✅ Seed produk urut 1–16 (bukan 0 semua)
+- ✅ POST produk/kategori auto-fill jika 0
+- ✅ Edit produk → renumber otomatis (geser naik/turun)
+- ✅ Edit kategori → renumber otomatis (geser naik/turun) — **BARU**
+- ✅ Renumber endpoint untuk kategori — **BARU**
+- ✅ UI kategori: tombol "Urutkan Ulang" — **BARU**
+- ✅ Admin produk: openEdit pakai nilai asli DB, bukan posisi filter
+- ✅ Landing page: tetap sinkron via ISR
+- ⚠️ Untuk produk yang sudah ada (sortOrder masih 0), jalankan "Urutkan Ulang" di admin
+
+---
+
+### [2026-06-17] — Image Uploader Redesign + Auto-Delete Foto Lama
+
+#### Yang dilakukan:
+
+**UX Form — Admin Produk & Settings:**
+1. **`ImageUploader.tsx` (BARU)** — komponen preview visual besar (aspect 4:3):
+   - Empty state: dashed border + icon + "Klik untuk upload gambar"
+   - Ada gambar: preview penuh, hover overlay "Ganti Foto"
+   - Loading upload: spinner overlay
+   - Drag-drop area (visual feedback saat dragging)
+   - Input URL dan tombol upload kecil **dihapus total**
+2. **`products/page.tsx`** — ganti input URL + tombol kecil → `<ImageUploader>`
+3. **`settings/page.tsx`** — ganti di 3 tempat (logo, hero, tentang) → `<ImageUploader>`
+
+**Auto-Delete Foto Lama — Hemat Storage:**
+4. **`src/lib/upload.ts`** — fungsi `deleteFromSupabase(url)` BARU — hapus file dari Supabase Storage via REST API
+5. **`PUT /api/products/[id]`** — setelah update DB sukses, hapus foto lama jika image berubah (kedua code path: renumber & biasa)
+6. **`DELETE /api/products/[id]`** — sebelum hapus record, hapus `image` + semua `images[]` dari Supabase
+7. **`PUT /api/settings`** — hapus foto lama untuk `site_logo`, `hero_image`, `about_image` jika berubah
+
+**Fix Kategori Select:**
+8. **`products/page.tsx`** — `<SelectValue>` nampilkan raw UUID → diperbaiki nampilkan **nama kategori** yang dipilih (via `categories.find()`)
+
+**File Baru:**
+- `src/components/admin/ImageUploader.tsx` — komponen upload + preview visual
+
+#### Status:
+- ✅ Build berhasil (0 error)
+- ✅ Preview visual besar di admin produk & settings
+- ✅ Input URL & tombol kecil dihapus dari admin
+- ✅ Foto lama auto-terhapus saat diganti (produk & settings)
+- ✅ Foto lama auto-terhapus saat produk dihapus
+- ✅ Select kategori nampilkan nama, bukan UUID
+
+---
+
 ## Aturan Sesi Baru
 
 1. **Baca `context.md` ini dulu** — sebelum mulai coding, baca seluruh file ini
@@ -311,7 +444,10 @@
 - Landing page: `/`
 - Admin login: `/admin/login`
 - Admin dashboard: `/admin/dashboard`
-- Database: `prisma/dev.db` (SQLite)
+- Database: `prisma/dev.db` (SQLite) atau PostgreSQL (Supabase)
 - Prisma Studio: `npx prisma studio`
 - Build: `npm run build`
 - Seed ulang: `npx tsx prisma/seed.ts`
+- Git branch fitur: `feature/variant-selector`
+- Migration file: `prisma/migrations/20260617120024_add_variants/migration.sql`
+- Database switching: `.env` ganti DATABASE_URL + schema.prisma ganti provider (sqlite ↔ postgresql)
