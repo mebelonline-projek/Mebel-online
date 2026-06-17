@@ -59,7 +59,7 @@ export default function Hero({
             src={imageUrl}
             alt={title}
             fill
-            className="object-cover"
+            className="object-cover object-[65%_50%]"
             priority
           />
         ) : (

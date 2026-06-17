@@ -44,6 +44,7 @@ import {
   ImageIcon,
   ChevronLeft,
   ChevronRight,
+  ListOrdered,
 } from "lucide-react";
 
 const PAGE_SIZE = 50;
@@ -96,6 +97,7 @@ export default function ProductsPage() {
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [isRenumbering, setIsRenumbering] = useState(false);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: PAGE_SIZE,
@@ -120,6 +122,25 @@ export default function ProductsPage() {
       setIsLoading(false);
     }
   }, []);
+
+  const handleRenumber = useCallback(async () => {
+    if (isRenumbering) return;
+    setIsRenumbering(true);
+    try {
+      const res = await fetch("/api/products/renumber", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message);
+        fetchProducts(pagination.page);
+      } else {
+        toast.error(data.error || "Gagal mengurutkan ulang");
+      }
+    } catch {
+      toast.error("Gagal mengurutkan ulang");
+    } finally {
+      setIsRenumbering(false);
+    }
+  }, [isRenumbering, fetchProducts, pagination.page]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -296,6 +317,20 @@ export default function ProductsPage() {
             />
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRenumber}
+              disabled={isRenumbering}
+              className="rounded-xl h-10 text-xs"
+            >
+              {isRenumbering ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <ListOrdered className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Urutkan Ulang
+            </Button>
             <span className="text-sm text-gray-400">
               {pagination.total} produk
             </span>
