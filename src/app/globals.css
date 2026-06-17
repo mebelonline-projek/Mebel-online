@@ -157,23 +157,10 @@
   }
 }
 
-/* CSS-only entrance: slide-up + fade — GPU composited, no flicker */
-@keyframes card-entrance {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.animate-card {
-  animation: card-entrance 0.5s ease-out both;
-}
-
+/* CSS-only entrance (dipakai untuk fallback / prefer-reduced-motion) */
 @media (prefers-reduced-motion: reduce) {
   .animate-card {
-    animation: none;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }

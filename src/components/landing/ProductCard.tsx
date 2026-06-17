@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
 import { ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ export default function ProductCard({
   delayMs = 0,
 }: ProductCardProps) {
   const [imageError, setImageError] = useState(false);
+  const prefersReduced = useReducedMotion();
   const waLink = waNumber
     ? buildWaLink(
         waNumber,
@@ -34,9 +36,16 @@ export default function ProductCard({
     : "#";
 
   return (
-    <article
-      className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 animate-card"
-      style={{ animationDelay: `${delayMs}ms` }}
+    <motion.div
+      initial={prefersReduced ? false : { opacity: 0, y: 30, scale: 0.92 }}
+      whileInView={prefersReduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, margin: "-30px" }}
+      transition={prefersReduced ? undefined : {
+        duration: 0.55,
+        delay: delayMs / 1000,
+        ease: [0.25, 0.46, 0.45, 0.94],
+      }}
+      className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300"
     >
       {/* Image Container */}
       <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
@@ -129,6 +138,6 @@ export default function ProductCard({
           </a>
         </div>
       </div>
-    </article>
+    </motion.div>
   );
 }
