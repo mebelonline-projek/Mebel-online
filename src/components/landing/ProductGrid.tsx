@@ -134,6 +134,7 @@ export default function ProductGrid({
               waNumber={waNumber}
               waMessage={waMessage}
               priority={index < 6}
+              delayMs={Math.min(index * 20, 150)}
             />
           ))}
         </div>

@@ -13,6 +13,7 @@ interface ProductCardProps {
   waNumber?: string;
   waMessage?: string;
   priority?: boolean;
+  delayMs?: number;
 }
 
 export default function ProductCard({
@@ -20,6 +21,7 @@ export default function ProductCard({
   waNumber = "",
   waMessage = "Halo, saya tertarik dengan produk ini.",
   priority = false,
+  delayMs = 0,
 }: ProductCardProps) {
   const [imageError, setImageError] = useState(false);
   const waLink = waNumber
@@ -32,7 +34,10 @@ export default function ProductCard({
     : "#";
 
   return (
-    <article className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300">
+    <article
+      className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 animate-card"
+      style={{ animationDelay: `${delayMs}ms` }}
+    >
       {/* Image Container */}
       <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
         {product.image && !imageError ? (
