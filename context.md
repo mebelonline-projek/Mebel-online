@@ -240,10 +240,15 @@
 1. Balik ke `h-screen` full
 2. `object-position: 65% 50%` — gambar tidak terpotong kanan
 
-**Product Flicker Fix (Final):**
-1. **Hapus total `motion.div`** entrance animation — kompetisi opacity sebabkan kedip
-2. Gambar tetap **fade-in 0.3s via onLoad** — smooth
-3. 6 produk pertama `priority={true}` (tidak lazy-load)
+**Product Flicker Fix (Final — v2):**
+1. **No opacity in animation** — `motion.div` hanya `y: 40→0` + `scale: 0.88→1` (tanpa opacity = tanpa flash)
+2. **GPU compositing** — class `gpu-layer` (`backface-visibility: hidden`) cegah flicker compositor di mobile
+3. **`transition-all` dihapus** — diganti `transition-shadow` agar tidak berebut transform dgn framer-motion
+4. **Trigger lebih awal** — viewport margin `-50px` biar animasi mulai sebelum kard masuk layar
+5. **Perbesar efek** — `y: 40` + `scale: 0.88` biar terasa elegan saat scroll
+6. **Stagger ringan** — `delayMs` max 200ms per kard
+7. 6 produk pertama `priority={true}` (tidak lazy-load)
+8. Reduced motion: skip semua animasi via `useReducedMotion()`
 
 **WA Link Refactor:**
 1. Utility baru `src/lib/wa.ts` — `buildWaLink()` + `normalizeWaNumber()` (auto 08xx → 628xx)
@@ -273,7 +278,7 @@
 
 #### Status:
 - ✅ Build berhasil (0 error)
-- ✅ Push: `be90816`, `0e199a6`, `70c2c3d`, `0e29748`
+- ✅ Push: `be90816`..`87dcceb` (11 commits)
 - ✅ WA link konsisten & auto-format nomor
 - ✅ Produk tidak flicker saat scroll
 - ✅ Hero full screen + animasi mewah
