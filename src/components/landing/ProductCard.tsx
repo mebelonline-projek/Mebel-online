@@ -6,7 +6,6 @@ import Image from "next/image";
 import { ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { buildWaLink } from "@/lib/wa";
 import type { ProductWithCategory } from "@/types";
 
@@ -44,30 +43,23 @@ export default function ProductCard({
       className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 will-change-transform"
     >
       {/* Image Container */}
-      <div className="relative aspect-[4/3] overflow-hidden bg-gray-50">
+      <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
         {product.image && !imageError ? (
-          <>
-            {!imageLoaded && (
-              <div className="absolute inset-0">
-                <Skeleton className="h-full w-full rounded-none bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100" />
-              </div>
-            )}
-            <Image
-              src={product.image}
-              alt={product.name}
-              fill
-              priority={priority}
-              loading={priority ? "eager" : "lazy"}
-              decoding="async"
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-              onLoad={() => setImageLoaded(true)}
-              onError={() => setImageError(true)}
-              className={`object-cover group-hover:scale-105 transition-transform duration-700 ${
+          <Image
+            src={product.image}
+            alt={product.name}
+            fill
+            priority={priority}
+            loading={priority ? "eager" : "lazy"}
+            decoding="async"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageError(true)}
+            className={`object-cover group-hover:scale-105 transition-transform duration-700 ${
               imageLoaded ? "opacity-100" : "opacity-0"
             }`}
-              style={{ transition: "opacity 0.25s ease" }}
-            />
-          </>
+            style={{ transition: "opacity 0.3s ease" }}
+          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <ShoppingBag className="h-12 w-12 text-gray-300" />
