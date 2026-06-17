@@ -225,6 +225,63 @@
 
 ---
 
+### [2026-06-17] — Perbaikan Hero, Flicker Produk, WA Link, Optimasi Admin
+
+#### Yang dilakukan:
+
+**Hero 1 — Animasi Mewah:**
+1. **Word-by-word title** — setiap kata muncul bergantian dengan scale effect
+2. **Decorative divider** — garis gradient oranye melebar dari tengah
+3. **Staggered CTA** — "Lihat Koleksi" dulu, "Tentang Kami" 0.2s kemudian
+4. Semua animasi pakai ease custom `[0.25, 0.46, 0.45, 0.94]`
+5. Reduced motion tetap dihormati
+
+**Hero 2 — Fix Cropping HP & Kembali Full Screen:**
+1. Balik ke `h-screen` full
+2. `object-position: 65% 50%` — gambar tidak terpotong kanan
+
+**Product Flicker Fix (Final):**
+1. **Hapus total `motion.div`** entrance animation — kompetisi opacity sebabkan kedip
+2. Gambar tetap **fade-in 0.3s via onLoad** — smooth
+3. 6 produk pertama `priority={true}` (tidak lazy-load)
+
+**WA Link Refactor:**
+1. Utility baru `src/lib/wa.ts` — `buildWaLink()` + `normalizeWaNumber()` (auto 08xx → 628xx)
+2. Semua WA komponen pakai utility terpusat
+3. WA per produk kirim `\n\nProduk: {nama}` — admin tahu produk ditanyakan
+4. Admin settings: deskripsi field Pesan Default WA
+
+**Auto Reorder Produk:**
+1. `POST /api/products/renumber` — beri nomor 1,2,3... ke semua produk
+2. `PUT /api/products/[id]` — renumber transaksional saat sortOrder berubah
+3. Admin tabel: kolom "Urutan"
+4. Form tambah: auto-fill `maxSort + 1`
+5. Form edit: **sortOrder dari posisi tabel** (bukan dari DB)
+
+**Edit Kategori — Daftar Produk:**
+1. Endpoint baru `GET /api/products/by-category` — ringan
+2. Dialog edit kategori tampilkan daftar produk + nomor urut
+
+**Optimasi Loading Admin:**
+1. Dashboard: `force-dynamic` → `revalidate = 60`
+2. Endpoint `by-category` tanpa count/JSON.parse/auth berulang
+
+#### File Baru:
+- `src/lib/wa.ts`
+- `src/app/api/products/renumber/route.ts`
+- `src/app/api/products/by-category/route.ts`
+
+#### Status:
+- ✅ Build berhasil (0 error)
+- ✅ Push: `be90816`, `0e199a6`, `70c2c3d`, `0e29748`
+- ✅ WA link konsisten & auto-format nomor
+- ✅ Produk tidak flicker saat scroll
+- ✅ Hero full screen + animasi mewah
+- ✅ Admin loading lebih cepat
+- ✅ Nomor urut produk di tabel & form edit
+
+---
+
 ## Aturan Sesi Baru
 
 1. **Baca `context.md` ini dulu** — sebelum mulai coding, baca seluruh file ini
