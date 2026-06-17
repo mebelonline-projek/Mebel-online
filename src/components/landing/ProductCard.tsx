@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { motion, useReducedMotion } from "framer-motion";
 import { ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +12,6 @@ interface ProductCardProps {
   product: ProductWithCategory;
   waNumber?: string;
   waMessage?: string;
-  index?: number;
   priority?: boolean;
 }
 
@@ -21,10 +19,8 @@ export default function ProductCard({
   product,
   waNumber = "",
   waMessage = "Halo, saya tertarik dengan produk ini.",
-  index = 0,
   priority = false,
 }: ProductCardProps) {
-  const prefersReduced = useReducedMotion();
   const [imageLoaded, setImageLoaded] = useState(false);
   const waLink = waNumber
     ? buildWaLink(
@@ -36,13 +32,7 @@ export default function ProductCard({
     : "#";
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      whileInView={{ opacity: 1 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: prefersReduced ? 0 : 0.4, delay: prefersReduced ? 0 : Math.min(index * 0.05, 0.3) }}
-      className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300"
-    >
+    <div className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300">
       {/* Image Container */}
       <div className="relative aspect-[4/3] overflow-hidden bg-gray-50">
         {product.image ? (
@@ -136,6 +126,6 @@ export default function ProductCard({
           </a>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

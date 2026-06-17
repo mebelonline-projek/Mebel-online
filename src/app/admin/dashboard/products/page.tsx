@@ -188,12 +188,14 @@ export default function ProductsPage() {
 
   const openEdit = (product: Product) => {
     setEditingProduct(product);
+    // Hitung nomor urut dari posisinya di daftar tampilan
+    const position = filteredProducts.findIndex((p) => p.id === product.id) + 1;
     setForm({
       name: product.name,
       description: product.description ?? "",
       image: product.image ?? "",
       categoryId: product.categoryId,
-      sortOrder: product.sortOrder,
+      sortOrder: position > 0 ? position : product.sortOrder,
       isActive: product.isActive,
     });
     setIsDialogOpen(true);

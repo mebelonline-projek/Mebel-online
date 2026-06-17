@@ -141,7 +141,6 @@ export default function ProductGrid({
                 product={product}
                 waNumber={waNumber}
                 waMessage={waMessage}
-                index={index}
                 priority={index < 6}
               />
             ))}
