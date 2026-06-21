@@ -3,6 +3,8 @@ import { SessionProvider } from "next-auth/react";
 import Sidebar from "@/components/admin/Sidebar";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Dashboard — Admin | Muara Teweh",
   robots: { index: false, follow: false },
