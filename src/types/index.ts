@@ -1,3 +1,21 @@
+// === Variant Types ===
+
+export interface VariantOption {
+  label: string;
+  value: string;
+  /** Hex color code for color-type variants (e.g. "#8B4513") */
+  hex?: string;
+  /** Optional image URL that changes when this variant is selected */
+  image?: string;
+}
+
+export interface ProductVariant {
+  type: "color" | "size" | "material" | "text";
+  /** Display name, e.g. "Warna", "Ukuran", "Bahan" */
+  name: string;
+  options: VariantOption[];
+}
+
 // === Landing Page Data Types ===
 
 export interface SiteSettings {
@@ -41,6 +59,7 @@ export interface ProductWithCategory {
   description: string | null;
   image: string | null;
   images: string[];
+  variants: ProductVariant[];
   categoryId: string;
   category: { name: string; slug: string };
   isActive: boolean;

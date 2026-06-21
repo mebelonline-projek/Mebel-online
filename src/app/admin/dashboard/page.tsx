@@ -3,7 +3,7 @@ import AdminHeader from "@/components/admin/AdminHeader";
 import { Package, Tags, CheckCircle, XCircle, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function DashboardOverview() {
   const [totalProducts, totalCategories, activeProducts, inactiveProducts] =

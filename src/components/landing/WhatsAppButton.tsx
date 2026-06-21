@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { buildWaLink } from "@/lib/wa";
 
 interface WhatsAppButtonProps {
   waNumber?: string;
@@ -9,12 +10,12 @@ interface WhatsAppButtonProps {
 
 export default function WhatsAppButton({
   waNumber = "",
-  waMessage = "Halo, saya tertarik dengan produk Anda.",
+  waMessage = "Halo, saya tertarik dengan produk furnitur Anda.",
 }: WhatsAppButtonProps) {
   const prefersReduced = useReducedMotion();
   if (!waNumber) return null;
 
-  const waLink = `https://wa.me/${waNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(waMessage)}`;
+  const waLink = buildWaLink(waNumber, waMessage);
 
   return (
     <motion.a

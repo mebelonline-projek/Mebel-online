@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { getAllSettings, updateSettings } from "@/lib/site-config";
 import { requireAdmin } from "@/lib/api-auth";
+import { deleteFromSupabase } from "@/lib/upload";
 import type { SiteSettings } from "@/types";
 
-// GET /api/settings — Ambil semua pengaturan landing page
+const IMAGE_FIELDS = ["site_logo", "hero_image", "about_image"];
+
+// GET /api/settings — Ambil semua pengaturan landing page (admin only)
 export async function GET() {
   try {
+    // Proteksi: hanya admin
+    const { error } = await requireAdmin();
+    if (error) return error;
+
     const settings = await getAllSettings();
     return NextResponse.json({ success: true, data: settings });
   } catch (error) {
@@ -36,10 +43,22 @@ export async function PUT(request: Request) {
       }
     }
 
+    // Ambil data lama dulu untuk cek perubahan gambar
+    const oldSettings = await getAllSettings();
+
     await updateSettings(body);
 
     // Ambil data terbaru
     const settings = await getAllSettings();
+
+    // Hapus foto lama dari Supabase kalau ada gambar yang berubah
+    for (const field of IMAGE_FIELDS) {
+      const oldVal = oldSettings[field as keyof SiteSettings] as string;
+      const newVal = body[field as keyof SiteSettings];
+      if (newVal !== undefined && newVal !== oldVal && oldVal) {
+        await deleteFromSupabase(oldVal);
+      }
+    }
 
     return NextResponse.json({
       success: true,

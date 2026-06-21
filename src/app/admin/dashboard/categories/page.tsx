@@ -32,6 +32,8 @@ import {
   Trash2,
   Loader2,
   Tags,
+  Package,
+  ListOrdered,
 } from "lucide-react";
 
 interface Category {
@@ -52,6 +54,9 @@ export default function CategoriesPage() {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [form, setForm] = useState({ name: "", description: "", sortOrder: 0 });
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
+  const [categoryProducts, setCategoryProducts] = useState<{ id: string; name: string; sortOrder: number }[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [isRenumbering, setIsRenumbering] = useState(false);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -65,24 +70,59 @@ export default function CategoriesPage() {
     }
   }, []);
 
+  const handleRenumber = useCallback(async () => {
+    if (isRenumbering) return;
+    setIsRenumbering(true);
+    try {
+      const res = await fetch("/api/categories/renumber", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message);
+        fetchCategories();
+      } else {
+        toast.error(data.error || "Gagal mengurutkan ulang");
+      }
+    } catch {
+      toast.error("Gagal mengurutkan ulang");
+    } finally {
+      setIsRenumbering(false);
+    }
+  }, [isRenumbering, fetchCategories]);
+
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
 
   const openCreate = () => {
     setEditingCategory(null);
+    // Auto-fill sortOrder: taruh di akhir (backend auto-fill via max+1, kirim 0)
     setForm({ name: "", description: "", sortOrder: 0 });
     setIsDialogOpen(true);
   };
 
-  const openEdit = (cat: Category) => {
+  const openEdit = async (cat: Category) => {
     setEditingCategory(cat);
     setForm({
       name: cat.name,
       description: cat.description ?? "",
       sortOrder: cat.sortOrder,
     });
+    setCategoryProducts([]);
+    setIsLoadingProducts(true);
     setIsDialogOpen(true);
+
+    // Fetch produk dalam kategori ini — pakai endpoint ringan
+    try {
+      const res = await fetch(`/api/products/by-category?categoryId=${cat.id}`);
+      const data = await res.json();
+      if (data.success) {
+        setCategoryProducts(data.data);
+      }
+    } catch {
+      // silent
+    } finally {
+      setIsLoadingProducts(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -180,13 +220,29 @@ export default function CategoriesPage() {
           <p className="text-sm text-gray-500">
             {categories.length} kategori
           </p>
-          <Button
-            onClick={openCreate}
-            className="bg-brand-maroon hover:bg-brand-maroon-dark text-white rounded-xl"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Tambah Kategori
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRenumber}
+              disabled={isRenumbering}
+              className="rounded-xl h-10 text-xs"
+            >
+              {isRenumbering ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <ListOrdered className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Urutkan Ulang
+            </Button>
+            <Button
+              onClick={openCreate}
+              className="bg-brand-maroon hover:bg-brand-maroon-dark text-white rounded-xl"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Tambah Kategori
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -258,7 +314,7 @@ export default function CategoriesPage() {
       </div>
 
       {/* Create/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) setCategoryProducts([]); setIsDialogOpen(open); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -297,10 +353,11 @@ export default function CategoriesPage() {
             </div>
 
             <div className="w-24">
-              <Label htmlFor="sortOrder">Urutan</Label>
+              <Label htmlFor="sortOrder">Urutan Kategori</Label>
               <Input
                 id="sortOrder"
                 type="number"
+                min={1}
                 value={form.sortOrder}
                 onChange={(e) =>
                   setForm((p) => ({
@@ -310,7 +367,46 @@ export default function CategoriesPage() {
                 }
                 className="h-9 mt-1"
               />
+              <p className="text-[10px] text-gray-400 leading-tight mt-1">
+                Nomor kecil = tampil lebih dulu. Kategori lain akan menyesuaikan otomatis.
+              </p>
             </div>
+
+            {/* Daftar Produk dalam kategori ini */}
+            {editingCategory && (
+              <div className="space-y-2 pt-2 border-t border-gray-100">
+                <Label className="text-xs text-gray-500">
+                  Produk dalam kategori ini — {isLoadingProducts ? "memuat..." : `${categoryProducts.length} produk`}
+                </Label>
+                {isLoadingProducts ? (
+                  <div className="flex items-center gap-2 py-3">
+                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                    <span className="text-sm text-gray-400">Memuat produk...</span>
+                  </div>
+                ) : categoryProducts.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-3">Belum ada produk di kategori ini.</p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {categoryProducts
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map((p) => (
+                        <div
+                          key={p.id}
+                          className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Package className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                            <span className="text-sm text-gray-700 truncate">{p.name}</span>
+                          </div>
+                          <span className="text-xs font-mono text-gray-400 ml-2 shrink-0">
+                            #{p.sortOrder}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 pt-2">
               <Button

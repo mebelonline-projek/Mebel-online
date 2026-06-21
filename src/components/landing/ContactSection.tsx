@@ -2,6 +2,8 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { MapPin, Phone, Mail, Clock } from "lucide-react";
+import SocialIcon from "@/components/shared/SocialIcon";
+import { buildWaLink } from "@/lib/wa";
 import type { SocialMediaItem } from "@/types";
 
 interface ContactSectionProps {
@@ -9,6 +11,7 @@ interface ContactSectionProps {
   email?: string;
   address?: string;
   waNumber?: string;
+  waMessage?: string;
   socialMedia?: SocialMediaItem[];
 }
 
@@ -17,6 +20,7 @@ export default function ContactSection({
   email = "",
   address = "",
   waNumber = "",
+  waMessage = "",
   socialMedia = [],
 }: ContactSectionProps) {
   const prefersReduced = useReducedMotion();
@@ -102,9 +106,7 @@ export default function ContactSection({
                       className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-brand-maroon hover:text-white transition-all duration-300"
                       aria-label={soc.platform}
                     >
-                      <span className="text-sm font-semibold">
-                        {soc.platform.charAt(0).toUpperCase()}
-                      </span>
+                      <SocialIcon platform={soc.platform} className="h-5 w-5" />
                     </a>
                   ))}
                 </div>
@@ -143,7 +145,7 @@ export default function ContactSection({
               <a
                 href={
                   waNumber
-                    ? `https://wa.me/${waNumber.replace(/[^0-9]/g, "")}`
+                    ? buildWaLink(waNumber, waMessage || "Halo, saya ingin bertanya tentang produk furnitur Anda.")
                     : "#"
                 }
                 target="_blank"

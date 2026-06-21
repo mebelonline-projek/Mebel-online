@@ -1,48 +1,99 @@
 "use client";
 
-import Image from "next/image";
+import { useState, useMemo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import Image from "next/image";
 import { ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { buildWaLink } from "@/lib/wa";
+import ProductVariantPicker from "./ProductVariantPicker";
 import type { ProductWithCategory } from "@/types";
 
 interface ProductCardProps {
   product: ProductWithCategory;
   waNumber?: string;
   waMessage?: string;
-  index?: number;
+  priority?: boolean;
+  delayMs?: number;
 }
 
 export default function ProductCard({
   product,
   waNumber = "",
   waMessage = "Halo, saya tertarik dengan produk ini.",
-  index = 0,
+  priority = false,
+  delayMs = 0,
 }: ProductCardProps) {
+  const [imageError, setImageError] = useState(false);
   const prefersReduced = useReducedMotion();
+
+  // State untuk varian yang dipilih
+  const [selectedVariants, setSelectedVariants] = useState<
+    Record<string, string>
+  >(() => {
+    // Default: pilih opsi pertama setiap grup
+    const defaults: Record<string, string> = {};
+    for (const v of product.variants ?? []) {
+      if (v.options.length > 0) {
+        defaults[v.name] = v.options[0].value;
+      }
+    }
+    return defaults;
+  });
+
+  const handleVariantChange = (groupName: string, value: string) => {
+    setSelectedVariants((prev) => ({ ...prev, [groupName]: value }));
+  };
+
+  // Build variant message string
+  const variantMessage = useMemo(() => {
+    const parts: string[] = [];
+    for (const v of product.variants ?? []) {
+      const val = selectedVariants[v.name];
+      const opt = v.options.find((o) => o.value === val);
+      if (opt) {
+        parts.push(`${v.name}=${opt.label}`);
+      }
+    }
+    return parts.length > 0 ? parts.join(", ") : "";
+  }, [product.variants, selectedVariants]);
+
   const waLink = waNumber
-    ? `https://wa.me/${waNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
-        `${waMessage}\n\nProduk: ${product.name}`
-      )}`
+    ? buildWaLink(
+        waNumber,
+        (() => {
+          const baseMsg = waMessage
+            ? `${waMessage}\n\nProduk: ${product.name}`
+            : `Halo, saya tertarik dengan produk "${product.name}". Silakan infokan detailnya.`;
+          return variantMessage ? `${baseMsg}\nVarian: ${variantMessage}` : baseMsg;
+        })()
+      )
     : "#";
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: prefersReduced ? 0 : 40 }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={prefersReduced ? false : { y: 40, scale: 0.88 }}
+      whileInView={prefersReduced ? undefined : { y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: prefersReduced ? 0 : 0.5, delay: prefersReduced ? 0 : index * 0.1 }}
-      className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300"
+      transition={prefersReduced ? undefined : {
+        duration: 0.6,
+        delay: delayMs / 1000,
+        ease: [0.25, 0.46, 0.45, 0.94],
+      }}
+      className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-shadow duration-300 gpu-layer"
     >
       {/* Image Container */}
-      <div className="relative aspect-[4/3] overflow-hidden bg-gray-50">
-        {product.image ? (
+      <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+        {product.image && !imageError ? (
           <Image
             src={product.image}
             alt={product.name}
             fill
+            priority={priority}
+            loading={priority ? "eager" : "lazy"}
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            onError={() => setImageError(true)}
             className="object-cover group-hover:scale-105 transition-transform duration-700"
           />
         ) : (
@@ -98,9 +149,18 @@ export default function ProductCard({
 
         {/* Description */}
         {product.description && (
-          <p className="text-sm text-gray-500 line-clamp-2 mb-4 min-h-[2.5rem]">
+          <p className="text-sm text-gray-500 line-clamp-2 mb-1 min-h-[2.5rem]">
             {product.description}
           </p>
+        )}
+
+        {/* Variant Picker */}
+        {product.variants && product.variants.length > 0 && (
+          <ProductVariantPicker
+            variants={product.variants}
+            selected={selectedVariants}
+            onChange={handleVariantChange}
+          />
         )}
 
         {/* Mobile WA Button */}

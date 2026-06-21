@@ -45,8 +45,10 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+const INITIAL_PRODUCT_LIMIT = 20;
+
 export default async function HomePage() {
-  const [settings, categories, products] = await Promise.all([
+  const [settings, categories, products, totalProducts] = await Promise.all([
     getAllSettings(),
     prisma.category.findMany({
       include: { _count: { select: { products: true } } },
@@ -58,12 +60,15 @@ export default async function HomePage() {
         category: { select: { name: true, slug: true } },
       },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      take: INITIAL_PRODUCT_LIMIT,
     }),
+    prisma.product.count({ where: { isActive: true } }),
   ]);
 
   const parsedProducts = products.map((p) => ({
     ...p,
     images: p.images ? JSON.parse(p.images) : [],
+    variants: p.variants ? JSON.parse(p.variants) : [],
   }));
 
   const jsonLd = {
@@ -91,7 +96,7 @@ export default async function HomePage() {
   };
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen overflow-x-hidden">
       {/* JSON-LD Structured Data */}
       <script
         type="application/ld+json"
@@ -99,7 +104,6 @@ export default async function HomePage() {
       />
 
       <Navbar
-        categories={categories}
         siteName={settings.site_name}
         logoUrl={settings.site_logo}
       />
@@ -116,6 +120,8 @@ export default async function HomePage() {
         categories={categories}
         waNumber={settings.wa_number}
         waMessage={settings.wa_message}
+        totalProducts={totalProducts}
+        initialLimit={INITIAL_PRODUCT_LIMIT}
       />
 
       <AboutSection
@@ -129,6 +135,7 @@ export default async function HomePage() {
         email={settings.contact_email}
         address={settings.contact_address}
         waNumber={settings.wa_number}
+        waMessage={settings.wa_message}
         socialMedia={settings.social_media}
       />
 

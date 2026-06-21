@@ -60,7 +60,10 @@ export async function POST(request: Request) {
         slug,
         description: parsed.description ?? null,
         image: parsed.image ?? null,
-        sortOrder: parsed.sortOrder ?? 0,
+        sortOrder:
+          parsed.sortOrder && parsed.sortOrder > 0
+            ? parsed.sortOrder
+            : ((await prisma.category.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? 0) + 1,
       },
     });
 
@@ -105,6 +108,48 @@ export async function PUT(request: Request) {
       );
     }
 
+    // === Renumber logic: saat sortOrder berubah, kategori lain otomatis menyesuaikan ===
+    if (sortOrder !== undefined && sortOrder !== existing.sortOrder) {
+      const oldSort = existing.sortOrder;
+      const newSort = sortOrder;
+
+      await prisma.$transaction(async (tx) => {
+        if (newSort < oldSort) {
+          // Kategori naik ke posisi lebih awal → geser yang di antaranya ke belakang
+          await tx.category.updateMany({
+            where: {
+              sortOrder: { gte: newSort, lt: oldSort },
+              id: { not: id },
+            },
+            data: { sortOrder: { increment: 1 } },
+          });
+        } else {
+          // Kategori turun ke posisi lebih akhir → geser yang di antaranya ke depan
+          await tx.category.updateMany({
+            where: {
+              sortOrder: { gt: oldSort, lte: newSort },
+              id: { not: id },
+            },
+            data: { sortOrder: { decrement: 1 } },
+          });
+        }
+
+        await tx.category.update({
+          where: { id },
+          data: {
+            name,
+            description: description ?? existing.description,
+            image: image ?? existing.image,
+            sortOrder: newSort,
+          },
+        });
+      });
+
+      const updated = await prisma.category.findUnique({ where: { id } });
+      return NextResponse.json({ success: true, data: updated });
+    }
+
+    // Tanpa perubahan sortOrder — update biasa
     const category = await prisma.category.update({
       where: { id },
       data: {

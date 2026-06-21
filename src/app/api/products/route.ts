@@ -49,10 +49,11 @@ export async function GET(request: Request) {
       prisma.product.count({ where }),
     ]);
 
-    // Parse images JSON string to array
+    // Parse images & variants JSON strings to arrays
     const parsedProducts = products.map((p) => ({
       ...p,
       images: p.images ? JSON.parse(p.images) : [],
+      variants: p.variants ? JSON.parse(p.variants) : [],
     }));
 
     return NextResponse.json({
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
     if (error) return error;
 
     const body = await request.json();
-    const { name, description, image, images, categoryId, sortOrder } = body;
+    const { name, description, image, images, variants, categoryId, sortOrder } = body;
 
     if (!name || !categoryId) {
       return NextResponse.json(
@@ -92,6 +93,12 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Auto-fill sortOrder: jika 0 atau tidak dikirim, taruh di urutan paling akhir
+    const nextSortOrder =
+      sortOrder && sortOrder > 0
+        ? sortOrder
+        : ((await prisma.product.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? 0) + 1;
 
     // Generate slug
     const slug = name
@@ -106,8 +113,9 @@ export async function POST(request: Request) {
         description,
         image: image ?? null,
         images: images ? JSON.stringify(images) : "[]",
+        variants: variants ? JSON.stringify(variants) : "[]",
         categoryId,
-        sortOrder: sortOrder ?? 0,
+        sortOrder: nextSortOrder,
       },
       include: {
         category: { select: { name: true, slug: true } },

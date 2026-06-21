@@ -6,16 +6,12 @@ import Image from "next/image";
 import { Menu } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import type { CategoryWithProductCount } from "@/types";
-
 interface NavbarProps {
-  categories?: CategoryWithProductCount[];
   siteName?: string;
   logoUrl?: string;
 }
 
 export default function Navbar({
-  categories = [],
   siteName = "Muara Teweh",
   logoUrl = "",
 }: NavbarProps) {
@@ -74,7 +70,7 @@ export default function Navbar({
             )}
 
             {/* Brand Text — Vertical Stack */}
-            <div className="flex flex-col leading-none">
+            <div className="flex flex-col leading-none items-center text-center">
               <span
                 className="font-tagline font-semibold text-sm sm:text-base tracking-wide"
                 style={{ color: "#B31324" }}
@@ -110,20 +106,7 @@ export default function Navbar({
             >
               Katalog
             </button>
-            {categories.slice(0, 4).map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => scrollToSection(`cat-${cat.slug}`)}
-                className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${
-                  isScrolled
-                    ? "text-gray-700 hover:text-brand-maroon hover:bg-brand-maroon/5"
-                    : "text-gray-200 hover:text-white"
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
-            <button
+<button
               onClick={() => scrollToSection("tentang")}
               className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${
                 isScrolled
@@ -182,15 +165,6 @@ export default function Navbar({
                 >
                   Katalog
                 </button>
-                {categories.slice(0, 4).map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => scrollToSection(`cat-${cat.slug}`)}
-                    className="text-left px-4 py-3 text-base rounded-lg hover:bg-brand-maroon/5 hover:text-brand-maroon transition-colors"
-                  >
-                    {cat.name}
-                  </button>
-                ))}
                 <button
                   onClick={() => scrollToSection("tentang")}
                   className="text-left px-4 py-3 text-lg font-medium rounded-lg hover:bg-brand-maroon/5 hover:text-brand-maroon transition-colors"

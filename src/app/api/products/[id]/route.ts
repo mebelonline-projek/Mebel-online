@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/api-auth";
+import { deleteFromSupabase } from "@/lib/upload";
 
 // GET /api/products/[id]
 export async function GET(
@@ -28,6 +29,7 @@ export async function GET(
       data: {
         ...product,
         images: product.images ? JSON.parse(product.images) : [],
+        variants: product.variants ? JSON.parse(product.variants) : [],
       },
     });
   } catch (error) {
@@ -51,7 +53,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, description, image, images, categoryId, isActive, sortOrder } = body;
+    const { name, description, image, images, variants, categoryId, isActive, sortOrder } = body;
 
     if (!name || !categoryId) {
       return NextResponse.json(
@@ -68,6 +70,69 @@ export async function PUT(
       );
     }
 
+    // === Renumber logic: saat sortOrder berubah, produk lain otomatis menyesuaikan ===
+    if (sortOrder !== undefined && sortOrder !== existing.sortOrder) {
+      const oldSort = existing.sortOrder;
+      const newSort = sortOrder;
+
+      await prisma.$transaction(async (tx) => {
+        if (newSort < oldSort) {
+          // Produk naik ke posisi lebih awal → produk di antaranya digeser mundur
+          await tx.product.updateMany({
+            where: {
+              sortOrder: { gte: newSort, lt: oldSort },
+              id: { not: id },
+            },
+            data: { sortOrder: { increment: 1 } },
+          });
+        } else {
+          // Produk turun ke posisi lebih akhir → produk di antaranya digeser maju
+          await tx.product.updateMany({
+            where: {
+              sortOrder: { gt: oldSort, lte: newSort },
+              id: { not: id },
+            },
+            data: { sortOrder: { decrement: 1 } },
+          });
+        }
+
+        await tx.product.update({
+          where: { id },
+          data: {
+            name,
+            description,
+            image: image ?? existing.image,
+            images: images ? JSON.stringify(images) : existing.images,
+            variants: variants ? JSON.stringify(variants) : existing.variants,
+            categoryId,
+            isActive: isActive ?? existing.isActive,
+            sortOrder: newSort,
+          },
+        });
+      });
+
+      // Ambil ulang data setelah renumber
+      const updated = await prisma.product.findUnique({
+        where: { id },
+        include: { category: { select: { name: true, slug: true } } },
+      });
+
+      // Hapus foto lama dari Supabase kalau image berubah
+      if (image !== undefined && image !== existing.image && existing.image) {
+        await deleteFromSupabase(existing.image);
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...updated,
+          images: updated?.images ? JSON.parse(updated.images) : [],
+          variants: updated?.variants ? JSON.parse(updated.variants) : [],
+        },
+      });
+    }
+
+    // Tanpa perubahan sortOrder — update biasa
     const product = await prisma.product.update({
       where: { id },
       data: {
@@ -75,6 +140,7 @@ export async function PUT(
         description,
         image: image ?? existing.image,
         images: images ? JSON.stringify(images) : existing.images,
+        variants: variants ? JSON.stringify(variants) : existing.variants,
         categoryId,
         isActive: isActive ?? existing.isActive,
         sortOrder: sortOrder ?? existing.sortOrder,
@@ -83,6 +149,11 @@ export async function PUT(
         category: { select: { name: true, slug: true } },
       },
     });
+
+    // Hapus foto lama dari Supabase kalau image berubah
+    if (image !== undefined && image !== existing.image && existing.image) {
+      await deleteFromSupabase(existing.image);
+    }
 
     return NextResponse.json({ success: true, data: product });
   } catch (error) {
@@ -112,6 +183,15 @@ export async function DELETE(
         { success: false, error: "Produk tidak ditemukan." },
         { status: 404 }
       );
+    }
+
+    // Hapus foto dari Supabase sebelum hapus record
+    if (existing.image) {
+      await deleteFromSupabase(existing.image);
+    }
+    if (existing.images) {
+      const imageList = JSON.parse(existing.images) as string[];
+      await Promise.all(imageList.map((img) => deleteFromSupabase(img)));
     }
 
     await prisma.product.delete({ where: { id } });

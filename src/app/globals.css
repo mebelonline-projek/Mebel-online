@@ -156,3 +156,17 @@
     }
   }
 }
+
+/* GPU compositing — force GPU layer untuk cegah flicker mobile */
+.gpu-layer {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* prefers-reduced-motion fallback */
+@media (prefers-reduced-motion: reduce) {
+  .gpu-layer {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

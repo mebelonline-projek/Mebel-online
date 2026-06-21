@@ -51,6 +51,7 @@ model Product {
   images      String?  // JSON array of additional image URLs
   categoryId  String
   category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  variants    String?  // JSON array of product variants (color, size, material, etc.)
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
@@ -65,4 +66,16 @@ model SiteConfig {
   id    String @id @default(cuid())
   key   String @unique
   value String // JSON stringified for complex values
+}
+
+model RateLimit {
+  id         String   @id @default(cuid())
+  identifier String   // IP atau email
+  action     String   // "forgot-password" / "reset-password"
+  count      Int      @default(1)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([identifier, action])
+  @@index([expiresAt])
 }

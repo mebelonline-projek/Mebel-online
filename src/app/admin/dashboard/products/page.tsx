@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import AdminHeader from "@/components/admin/AdminHeader";
+import ImageUploader from "@/components/admin/ImageUploader";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +43,13 @@ import {
   Loader2,
   Package,
   ImageIcon,
+  ChevronLeft,
+  ChevronRight,
+  ListOrdered,
+  X,
 } from "lucide-react";
+
+const PAGE_SIZE = 50;
 
 interface Category {
   id: string;
@@ -57,11 +64,19 @@ interface Product {
   description: string | null;
   image: string | null;
   images: string[];
+  variants: { type: string; name: string; options: { label: string; value: string; hex?: string }[] }[];
   categoryId: string;
   category: { name: string; slug: string };
   isActive: boolean;
   sortOrder: number;
   createdAt: string;
+}
+
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }
 
 const emptyForm = {
@@ -71,46 +86,99 @@ const emptyForm = {
   categoryId: "",
   sortOrder: 0,
   isActive: true,
+  variants: [] as { type: string; name: string; options: { label: string; value: string; hex?: string }[] }[],
 };
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [isRenumbering, setIsRenumbering] = useState(false);
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    limit: PAGE_SIZE,
+    total: 0,
+    totalPages: 0,
+  });
+  // Variant inline form states
+  const [addingGroup, setAddingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupType, setNewGroupType] = useState<"color" | "size" | "material" | "text">("color");
+  const [addingOptionFor, setAddingOptionFor] = useState<number | null>(null);
+  const [newOptLabel, setNewOptLabel] = useState("");
+  const [newOptHex, setNewOptHex] = useState("");
+
+  const fetchProducts = useCallback(async (page: number) => {
+    setIsLoadingMore(true);
+    try {
+      const res = await fetch(`/api/products?all=true&page=${page}&limit=${PAGE_SIZE}`);
+      const data = await res.json();
+
+      if (data.success) {
+        setProducts(data.data.products);
+        setPagination(data.data.pagination);
+      }
+    } catch {
+      toast.error("Gagal memuat produk");
+    } finally {
+      setIsLoadingMore(false);
+      setIsLoading(false);
+    }
+  }, []);
+
+  const handleRenumber = useCallback(async () => {
+    if (isRenumbering) return;
+    setIsRenumbering(true);
+    try {
+      const res = await fetch("/api/products/renumber", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message);
+        fetchProducts(pagination.page);
+      } else {
+        toast.error(data.error || "Gagal mengurutkan ulang");
+      }
+    } catch {
+      toast.error("Gagal mengurutkan ulang");
+    } finally {
+      setIsRenumbering(false);
+    }
+  }, [isRenumbering, fetchProducts, pagination.page]);
 
   const fetchData = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const [productsRes, categoriesRes] = await Promise.all([
-        fetch("/api/products?all=true&limit=200"),
+      const [categoriesRes] = await Promise.all([
         fetch("/api/categories"),
+        fetchProducts(1),
       ]);
 
-      const productsData = await productsRes.json();
       const categoriesData = await categoriesRes.json();
 
-      if (productsData.success) {
-        setProducts(productsData.data.products);
-      }
       if (categoriesData.success) {
         setCategories(categoriesData.data);
       }
     } catch {
       toast.error("Gagal memuat data");
-    } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchProducts]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const goToPage = (page: number) => {
+    if (page < 1 || page > pagination.totalPages) return;
+    fetchProducts(page);
+  };
 
   const filteredProducts = products.filter(
     (p) =>
@@ -120,12 +188,14 @@ export default function ProductsPage() {
 
   const openCreate = () => {
     setEditingProduct(null);
-    setForm(emptyForm);
+    // sortOrder 0 → backend auto-fill dengan nomor tertinggi +1
+    setForm({ ...emptyForm, variants: [], sortOrder: 0 });
     setIsDialogOpen(true);
   };
 
   const openEdit = (product: Product) => {
     setEditingProduct(product);
+    // Pakai sortOrder asli dari database, bukan posisi di daftar filter
     setForm({
       name: product.name,
       description: product.description ?? "",
@@ -133,6 +203,7 @@ export default function ProductsPage() {
       categoryId: product.categoryId,
       sortOrder: product.sortOrder,
       isActive: product.isActive,
+      variants: product.variants ?? [],
     });
     setIsDialogOpen(true);
   };
@@ -162,7 +233,7 @@ export default function ProductsPage() {
       if (data.success) {
         toast.success(editingProduct ? "Produk berhasil diedit" : "Produk berhasil ditambah");
         setIsDialogOpen(false);
-        fetchData();
+        fetchProducts(pagination.page);
       } else {
         toast.error(data.error || "Gagal menyimpan produk");
       }
@@ -185,38 +256,17 @@ export default function ProductsPage() {
       if (data.success) {
         toast.success("Produk berhasil dihapus");
         setDeleteTarget(null);
-        fetchData();
+        // Jika halaman saat ini kosong setelah hapus, mundur satu halaman
+        const targetPage =
+          products.length === 1 && pagination.page > 1
+            ? pagination.page - 1
+            : pagination.page;
+        fetchProducts(targetPage);
       } else {
         toast.error(data.error || "Gagal menghapus produk");
       }
     } catch {
       toast.error("Terjadi kesalahan");
-    }
-  };
-
-  const handleUploadImage = async (file: File) => {
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "products");
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        setForm((prev) => ({ ...prev, image: data.data.url }));
-        toast.success("Gambar berhasil diupload");
-      } else {
-        toast.error(data.error || "Gagal upload gambar");
-      }
-    } catch {
-      toast.error("Gagal upload gambar");
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -249,13 +299,32 @@ export default function ProductsPage() {
               className="pl-9 h-10"
             />
           </div>
-          <Button
-            onClick={openCreate}
-            className="bg-brand-maroon hover:bg-brand-maroon-dark text-white rounded-xl"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Tambah Produk
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRenumber}
+              disabled={isRenumbering}
+              className="rounded-xl h-10 text-xs"
+            >
+              {isRenumbering ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <ListOrdered className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Urutkan Ulang
+            </Button>
+            <span className="text-sm text-gray-400">
+              {pagination.total} produk
+            </span>
+            <Button
+              onClick={openCreate}
+              className="bg-brand-maroon hover:bg-brand-maroon-dark text-white rounded-xl"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Tambah Produk
+            </Button>
+          </div>
         </div>
 
         {/* Table */}
@@ -279,106 +348,181 @@ export default function ProductsPage() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
-                      Produk
-                    </th>
-                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
-                      Kategori
-                    </th>
-                    <th className="text-center text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
-                      Status
-                    </th>
-                    <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
-                      Aksi
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filteredProducts.map((product) => (
-                    <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0">
-                            {product.image ? (
-                              <Image
-                                src={product.image}
-                                alt={product.name}
-                                width={40}
-                                height={40}
-                                className="w-full h-full object-cover"
-                                unoptimized
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <ImageIcon className="h-4 w-4 text-gray-400" />
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              {product.name}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {product.createdAt
-                                ? new Date(product.createdAt).toLocaleDateString("id-ID")
-                                : ""}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-0">
-                          {product.category.name}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <Badge
-                          variant="secondary"
-                          className={
-                            product.isActive
-                              ? "bg-green-50 text-green-700 border-0"
-                              : "bg-red-50 text-red-700 border-0"
-                          }
-                        >
-                          {product.isActive ? "Aktif" : "Nonaktif"}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEdit(product)}
-                            className="h-8 w-8 text-gray-400 hover:text-brand-maroon"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeleteTarget(product)}
-                            className="h-8 w-8 text-gray-400 hover:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
+                        Produk
+                      </th>
+                      <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
+                        Kategori
+                      </th>
+                      <th className="text-center text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
+                        Urutan
+                      </th>
+                      <th className="text-center text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
+                        Status
+                      </th>
+                      <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider py-3 px-4">
+                        Aksi
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filteredProducts.map((product) => (
+                      <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0">
+                              {product.image ? (
+                                <Image
+                                  src={product.image}
+                                  alt={product.name}
+                                  width={40}
+                                  height={40}
+                                  className="w-full h-full object-cover"
+                                  unoptimized
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <ImageIcon className="h-4 w-4 text-gray-400" />
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">
+                                {product.name}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {product.createdAt
+                                  ? new Date(product.createdAt).toLocaleDateString("id-ID")
+                                  : ""}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-0">
+                            {product.category.name}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className="text-sm font-mono text-gray-700">
+                            {product.sortOrder}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <Badge
+                            variant="secondary"
+                            className={
+                              product.isActive
+                                ? "bg-green-50 text-green-700 border-0"
+                                : "bg-red-50 text-red-700 border-0"
+                            }
+                          >
+                            {product.isActive ? "Aktif" : "Nonaktif"}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEdit(product)}
+                              className="h-8 w-8 text-gray-400 hover:text-brand-maroon"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeleteTarget(product)}
+                              className="h-8 w-8 text-gray-400 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3">
+                  <span className="text-sm text-gray-500">
+                    Halaman {pagination.page} dari {pagination.totalPages}
+                    {isLoadingMore && (
+                      <Loader2 className="inline h-3 w-3 ml-2 animate-spin" />
+                    )}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={pagination.page <= 1 || isLoadingMore}
+                      onClick={() => goToPage(pagination.page - 1)}
+                      className="rounded-xl h-9 px-3"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+
+                    {/* Page number buttons */}
+                    {Array.from({ length: Math.min(pagination.totalPages, 7) }, (_, i) => {
+                      // Show pages around current page
+                      let pageNum: number;
+                      if (pagination.totalPages <= 7) {
+                        pageNum = i + 1;
+                      } else if (pagination.page <= 4) {
+                        pageNum = i + 1;
+                      } else if (pagination.page >= pagination.totalPages - 3) {
+                        pageNum = pagination.totalPages - 6 + i;
+                      } else {
+                        pageNum = pagination.page - 3 + i;
+                      }
+
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={pagination.page === pageNum ? "default" : "outline"}
+                          size="sm"
+                          disabled={isLoadingMore}
+                          onClick={() => goToPage(pageNum)}
+                          className={`rounded-xl h-9 w-9 p-0 ${
+                            pagination.page === pageNum
+                              ? "bg-brand-maroon hover:bg-brand-maroon-dark text-white"
+                              : ""
+                          }`}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={pagination.page >= pagination.totalPages || isLoadingMore}
+                      onClick={() => goToPage(pagination.page + 1)}
+                      className="rounded-xl h-9 px-3"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingProduct ? "Edit Produk" : "Tambah Produk"}
@@ -409,7 +553,10 @@ export default function ProductsPage() {
                 onValueChange={(v) => setForm((p) => ({ ...p, categoryId: v ?? "" }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Pilih kategori" />
+                  <SelectValue>
+                    {categories.find((c) => c.id === form.categoryId)?.name ||
+                      "Pilih kategori"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((cat) => (
@@ -423,37 +570,10 @@ export default function ProductsPage() {
 
             <div className="space-y-2">
               <Label>Gambar Produk</Label>
-              <div className="flex items-center gap-3">
-                <Input
-                  value={form.image}
-                  onChange={(e) => setForm((p) => ({ ...p, image: e.target.value }))}
-                  placeholder="URL gambar atau upload"
-                  className="flex-1"
-                />
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleUploadImage(file);
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={uploading}
-                    className="rounded-xl"
-                  >
-                    {uploading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ImageIcon className="h-4 w-4" />
-                    )}
-                  </Button>
-                </label>
-              </div>
+              <ImageUploader
+                currentImage={form.image}
+                onImageUploaded={(url) => setForm((p) => ({ ...p, image: url }))}
+              />
             </div>
 
             <div className="space-y-2">
@@ -465,6 +585,243 @@ export default function ProductsPage() {
                 placeholder="Deskripsi produk (opsional)"
                 rows={3}
               />
+            </div>
+
+            {/* ── Variant Management ── */}
+            <div className="space-y-3 border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">Varian Produk</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setNewGroupName("");
+                    setNewGroupType("color");
+                    setAddingGroup(true);
+                  }}
+                  className="rounded-xl h-8 text-xs"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Tambah Varian
+                </Button>
+              </div>
+
+              {/* Inline form: tambah grup varian baru */}
+              {addingGroup && (
+                <div className="rounded-xl border border-brand-maroon/30 bg-brand-maroon/5 p-3 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-gray-500">Nama Grup</Label>
+                      <Input
+                        value={newGroupName}
+                        onChange={(e) => setNewGroupName(e.target.value)}
+                        placeholder="Contoh: Warna, Ukuran"
+                        className="h-8 text-sm mt-1"
+                        autoFocus
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">Tipe</Label>
+                      <Select value={newGroupType} onValueChange={(v) => setNewGroupType(v as typeof newGroupType)}>
+                        <SelectTrigger className="h-8 text-sm mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="color">Color (circle swatches)</SelectItem>
+                          <SelectItem value="size">Size (pill buttons)</SelectItem>
+                          <SelectItem value="material">Material (pill buttons)</SelectItem>
+                          <SelectItem value="text">Text (pill buttons)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAddingGroup(false)}
+                      className="h-7 text-xs"
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!newGroupName.trim()}
+                      onClick={() => {
+                        setForm((p) => ({
+                          ...p,
+                          variants: [...p.variants, { type: newGroupType, name: newGroupName.trim(), options: [] }],
+                        }));
+                        setAddingGroup(false);
+                        setNewGroupName("");
+                      }}
+                      className="h-7 text-xs bg-brand-maroon hover:bg-brand-maroon-dark text-white"
+                    >
+                      Simpan
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {form.variants.length === 0 && (
+                <p className="text-xs text-gray-400 italic">
+                  Belum ada varian. Klik "Tambah Varian" untuk menambahkan pilihan warna, ukuran, atau bahan.
+                </p>
+              )}
+
+              {form.variants.map((group, gi) => (
+                <div
+                  key={gi}
+                  className="rounded-xl border border-gray-200 bg-gray-50/50 p-3 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider px-2 py-0.5 rounded-full bg-white border">
+                        {group.type}
+                      </span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {group.name}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((p) => ({
+                          ...p,
+                          variants: p.variants.filter((_, i) => i !== gi),
+                        }))
+                      }
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Options list */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {group.options.map((opt, oi) => (
+                      <span
+                        key={oi}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border text-xs"
+                      >
+                        {group.type === "color" && opt.hex && (
+                          <span
+                            className="h-3.5 w-3.5 rounded-full"
+                            style={{ backgroundColor: opt.hex }}
+                          />
+                        )}
+                        {opt.label}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((p) => {
+                              const updated = [...p.variants];
+                              updated[gi] = {
+                                ...updated[gi],
+                                options: updated[gi].options.filter((_, i) => i !== oi),
+                              };
+                              return { ...p, variants: updated };
+                            })
+                          }
+                          className="text-gray-300 hover:text-red-400 ml-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddingOptionFor(gi);
+                        setNewOptLabel("");
+                        setNewOptHex(group.type === "color" ? "#" : "");
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-gray-300 text-xs text-gray-400 hover:text-gray-600 hover:border-gray-400 transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Tambah opsi
+                    </button>
+                  </div>
+
+                  {/* Inline form: tambah opsi baru */}
+                  {addingOptionFor === gi && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-2 space-y-2 mt-1">
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <Label className="text-xs text-gray-500">Label</Label>
+                          <Input
+                            value={newOptLabel}
+                            onChange={(e) => setNewOptLabel(e.target.value)}
+                            placeholder={group.type === "color" ? "Coklat" : group.type === "size" ? "M" : "Kayu Jati"}
+                            className="h-8 text-sm mt-0.5"
+                            autoFocus
+                          />
+                        </div>
+                        {group.type === "color" && (
+                          <div className="w-20">
+                            <Label className="text-xs text-gray-500">Hex</Label>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Input
+                                value={newOptHex}
+                                onChange={(e) => setNewOptHex(e.target.value)}
+                                placeholder="#8B4513"
+                                className="h-8 text-sm font-mono"
+                              />
+                              {newOptHex.match(/^#[0-9a-fA-F]{6}$/) && (
+                                <span
+                                  className="h-6 w-6 rounded-full border shrink-0"
+                                  style={{ backgroundColor: newOptHex }}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!newOptLabel.trim()}
+                          onClick={() => {
+                            const value = newOptLabel.toLowerCase().replace(/\s+/g, "-");
+                            let hex: string | undefined;
+                            if (group.type === "color" && newOptHex.match(/^#[0-9a-fA-F]{6}$/)) {
+                              hex = newOptHex;
+                            }
+                            setForm((p) => {
+                              const updated = [...p.variants];
+                              updated[gi] = {
+                                ...updated[gi],
+                                options: [
+                                  ...updated[gi].options,
+                                  { label: newOptLabel.trim(), value, ...(hex ? { hex } : {}) },
+                                ],
+                              };
+                              return { ...p, variants: updated };
+                            });
+                            setAddingOptionFor(null);
+                            setNewOptLabel("");
+                            setNewOptHex("");
+                          }}
+                          className="h-8 text-xs bg-brand-maroon hover:bg-brand-maroon-dark text-white shrink-0"
+                        >
+                          Tambah
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setAddingOptionFor(null)}
+                          className="h-8 text-xs shrink-0"
+                        >
+                          Batal
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
 
             <div className="flex items-center gap-6">
@@ -480,16 +837,24 @@ export default function ProductsPage() {
                   Produk aktif
                 </Label>
               </div>
-              <div className="w-20">
+              <div className="space-y-1">
+                <Label htmlFor="sortOrder" className="text-xs text-gray-500">
+                  Urutan tampil
+                </Label>
                 <Input
+                  id="sortOrder"
                   type="number"
+                  min={1}
                   value={form.sortOrder}
                   onChange={(e) =>
                     setForm((p) => ({ ...p, sortOrder: parseInt(e.target.value) || 0 }))
                   }
                   placeholder="Urutan"
-                  className="h-9 text-sm"
+                  className="h-9 text-sm w-24"
                 />
+                <p className="text-[10px] text-gray-400 leading-tight">
+                  Nomor kecil = tampil lebih dulu. Produk lain akan menyesuaikan otomatis.
+                </p>
               </div>
             </div>
 

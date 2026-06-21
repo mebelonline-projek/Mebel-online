@@ -107,7 +107,8 @@ async function main() {
     { name: "Kasur Busa Inoac", desc: "Kasur busa Inoac 20 cm, nyaman dan awet.", cat: "tempat-tidur", img: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=600&q=80" },
   ];
 
-  for (const p of productData) {
+  for (let i = 0; i < productData.length; i++) {
+    const p = productData[i];
     const cat = categories.find((c) => c.slug === p.cat);
     if (!cat) continue;
 
@@ -124,10 +125,10 @@ async function main() {
           images: "[]",
           categoryId: cat.id,
           isActive: true,
-          sortOrder: 0,
+          sortOrder: i + 1,
         },
       });
-      console.log(`  🪑 Product: ${p.name}`);
+      console.log(`  🪑 Product: ${p.name} (urutan ${i + 1})`);
     }
   }
   console.log("✅ Products created");
