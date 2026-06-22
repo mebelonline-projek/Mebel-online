@@ -6,7 +6,6 @@ import Image from "next/image";
 import { Menu } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-
 interface NavbarProps {
   siteName?: string;
   logoUrl?: string;
@@ -113,7 +112,7 @@ export default function Navbar({
             >
               Katalog
             </button>
-            <button
+<button
               onClick={() => scrollToSection("tentang")}
               className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${
                 isScrolled

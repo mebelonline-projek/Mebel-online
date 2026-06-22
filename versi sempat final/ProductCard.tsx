@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
 import { ShoppingBag } from "lucide-react";
@@ -18,6 +18,23 @@ interface ProductCardProps {
   delayMs?: number;
 }
 
+/** Bangun gallery URLs: gambar utama + galeri */
+function buildGallery(product: ProductWithCategory): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  if (product.image && !seen.has(product.image)) {
+    urls.push(product.image);
+    seen.add(product.image);
+  }
+  for (const img of product.images ?? []) {
+    if (!seen.has(img)) {
+      urls.push(img);
+      seen.add(img);
+    }
+  }
+  return urls;
+}
+
 export default function ProductCard({
   product,
   waNumber = "",
@@ -25,14 +42,16 @@ export default function ProductCard({
   priority = false,
   delayMs = 0,
 }: ProductCardProps) {
-  const [imageError, setImageError] = useState(false);
   const prefersReduced = useReducedMotion();
 
-  // State untuk varian yang dipilih
+  // ── Gallery ──
+  const gallery = useMemo(() => buildGallery(product), [product]);
+  const hasMultipleImages = gallery.length > 1;
+
+  // ── States ──
   const [selectedVariants, setSelectedVariants] = useState<
     Record<string, string>
   >(() => {
-    // Default: pilih opsi pertama setiap grup
     const defaults: Record<string, string> = {};
     for (const v of product.variants ?? []) {
       if (v.options.length > 0) {
@@ -42,11 +61,92 @@ export default function ProductCard({
     return defaults;
   });
 
-  const handleVariantChange = (groupName: string, value: string) => {
-    setSelectedVariants((prev) => ({ ...prev, [groupName]: value }));
-  };
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [hoverImageIndex, setHoverImageIndex] = useState<number | null>(null);
+  const [imageError, setImageError] = useState(false);
 
-  // Build variant message string
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const lastPeekIndex = useRef(0); // track last hover peek untuk cycle gambar
+
+  // Deteksi device hover (mouse) vs touch
+  const isHoverDevice = useMemo(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches,
+    []
+  );
+
+  // Reset imageError saat tampilan berganti
+  const displayIndex = hoverImageIndex ?? currentImageIndex;
+
+  // ── Varian dipilih ──
+  const handleVariantChange = useCallback(
+    (groupName: string, value: string) => {
+      setSelectedVariants((prev) => ({ ...prev, [groupName]: value }));
+    },
+    []
+  );
+
+  // ── Desktop hover (peek next image — cycle through all) ──
+  const handleMouseEnter = useCallback(() => {
+    if (!isHoverDevice || !hasMultipleImages) return;
+    const next = (lastPeekIndex.current + 1) % gallery.length;
+    setHoverImageIndex(next);
+    lastPeekIndex.current = next;
+  }, [isHoverDevice, hasMultipleImages, gallery.length]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (!isHoverDevice) return;
+    setHoverImageIndex(null);
+  }, [isHoverDevice]);
+
+  // ── Klik gambar → cycle ke foto berikutnya ──
+  const handleImageClick = useCallback(() => {
+    if (!hasMultipleImages) return;
+    setCurrentImageIndex((prev) => (prev + 1) % gallery.length);
+    // reset hover peek agar tidak bentrok
+    setHoverImageIndex(null);
+  }, [hasMultipleImages, gallery.length]);
+
+  // ── Klik dot → lompat ke foto tertentu ──
+  const handleDotClick = useCallback((index: number) => {
+    setCurrentImageIndex(index);
+    setHoverImageIndex(null);
+  }, []);
+
+  // ── Mobile swipe ──
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (!hasMultipleImages) return;
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - touchStartX.current;
+      const deltaY = touch.clientY - touchStartY.current;
+
+      // Abaikan jika lebih dominan scroll vertikal
+      if (Math.abs(deltaY) > Math.abs(deltaX) * 2) return;
+      if (Math.abs(deltaX) < 60) return;
+
+      let newIndex: number;
+      if (deltaX > 0) {
+        newIndex =
+          currentImageIndex > 0 ? currentImageIndex - 1 : gallery.length - 1;
+      } else {
+        newIndex =
+          currentImageIndex < gallery.length - 1 ? currentImageIndex + 1 : 0;
+      }
+
+      setCurrentImageIndex(newIndex);
+    },
+    [hasMultipleImages, currentImageIndex, gallery.length]
+  );
+
+  // ── WA message ──
   const variantMessage = useMemo(() => {
     const parts: string[] = [];
     for (const v of product.variants ?? []) {
@@ -66,7 +166,9 @@ export default function ProductCard({
           const baseMsg = waMessage
             ? `${waMessage}\n\nProduk: ${product.name}`
             : `Halo, saya tertarik dengan produk "${product.name}". Silakan infokan detailnya.`;
-          return variantMessage ? `${baseMsg}\nVarian: ${variantMessage}` : baseMsg;
+          return variantMessage
+            ? `${baseMsg}\nVarian: ${variantMessage}`
+            : baseMsg;
         })()
       )
     : "#";
@@ -76,25 +178,38 @@ export default function ProductCard({
       initial={prefersReduced ? false : { y: 40, scale: 0.88 }}
       whileInView={prefersReduced ? undefined : { y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-50px" }}
-      transition={prefersReduced ? undefined : {
-        duration: 0.6,
-        delay: delayMs / 1000,
-        ease: [0.25, 0.46, 0.45, 0.94],
-      }}
+      transition={
+        prefersReduced
+          ? undefined
+          : {
+              duration: 0.6,
+              delay: delayMs / 1000,
+              ease: [0.25, 0.46, 0.45, 0.94],
+            }
+      }
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
       className="group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-shadow duration-300 gpu-layer"
     >
-      {/* Image Container */}
-      <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
-        {product.image && !imageError ? (
+      {/* Image Container — klik untuk ganti foto */}
+      <div
+        className="relative aspect-[4/3] overflow-hidden bg-gray-100 select-none"
+        onClick={handleImageClick}
+      >
+        {gallery.length > 0 && !imageError ? (
           <Image
-            src={product.image}
+            key={displayIndex}
+            src={gallery[displayIndex]}
             alt={product.name}
             fill
             priority={priority}
             loading={priority ? "eager" : "lazy"}
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             onError={() => setImageError(true)}
-            className="object-cover group-hover:scale-105 transition-transform duration-700"
+            className="object-contain bg-gray-100 group-hover:scale-105 transition-transform duration-700"
+            draggable={false}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -102,14 +217,32 @@ export default function ProductCard({
           </div>
         )}
 
+        {/* Dots Indicator — klik untuk lompat foto */}
+        {hasMultipleImages && (
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-[3px] z-10">
+            {gallery.map((_, i) => (
+              <span
+                key={i}
+                onClick={(e) => { e.stopPropagation(); handleDotClick(i); }}
+                className={`block rounded-full transition-all duration-300 cursor-pointer ${
+                  i === displayIndex
+                    ? "bg-brand-maroon w-2 h-1.5"
+                    : "bg-white/60 hover:bg-white/90 h-1.5 w-1.5"
+                }`}
+              />
+            ))}
+          </div>
+        )}
+
         {/* Overlay on Hover */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
         {/* WA Button on Hover (Desktop) */}
         {waNumber && (
           <div
             className="absolute bottom-4 left-4 right-4 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300"
             aria-hidden="true"
+            onClick={(e) => e.stopPropagation()}
           >
             <a
               href={waLink}

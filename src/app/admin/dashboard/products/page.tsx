@@ -761,14 +761,20 @@ export default function ProductsPage() {
                           />
                         </div>
                         {group.type === "color" && (
-                          <div className="w-20">
+                          <div className="w-24">
                             <Label className="text-xs text-gray-500">Hex</Label>
                             <div className="flex items-center gap-1 mt-0.5">
                               <Input
                                 value={newOptHex}
                                 onChange={(e) => setNewOptHex(e.target.value)}
                                 placeholder="#8B4513"
-                                className="h-8 text-sm font-mono"
+                                className="h-8 text-sm font-mono flex-1"
+                              />
+                              <input
+                                type="color"
+                                value={newOptHex.match(/^#[0-9a-fA-F]{6}$/) ? newOptHex : "#000000"}
+                                onChange={(e) => setNewOptHex(e.target.value)}
+                                className="h-8 w-8 p-0.5 rounded border border-gray-300 cursor-pointer shrink-0"
                               />
                               {newOptHex.match(/^#[0-9a-fA-F]{6}$/) && (
                                 <span

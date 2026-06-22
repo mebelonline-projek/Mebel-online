@@ -3,7 +3,7 @@ import { getSupabase } from "@/lib/supabase";
 import { getAllSettings } from "@/lib/site-config";
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
-import ProductGrid from "@/components/landing/ProductGrid";
+import BentoCatalog from "@/components/landing/BentoCatalog";
 import AboutSection from "@/components/landing/AboutSection";
 import ContactSection from "@/components/landing/ContactSection";
 import Footer from "@/components/landing/Footer";
@@ -131,8 +131,8 @@ export default async function HomePage() {
         imageUrl={settings.hero_image}
       />
 
-      {/* Main Catalog — selalu tampil, dengan filter kategori */}
-      <ProductGrid
+      {/* Main Catalog — Bento Grid dengan filter kategori via API */}
+      <BentoCatalog
         products={products}
         categories={categories}
         waNumber={settings.wa_number}

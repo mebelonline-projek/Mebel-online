@@ -76,6 +76,12 @@ export interface ApiResponse<T = unknown> {
   message?: string;
 }
 
+// === Operating Hours ===
+export interface OperatingHourEntry {
+  days: string;
+  hours: string;
+}
+
 // === Admin Stats ===
 export interface DashboardStats {
   totalProducts: number;
