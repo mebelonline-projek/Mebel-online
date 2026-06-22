@@ -1,204 +1,251 @@
-# Ringkasan Troubleshoot — mebel-online.deploy
+# 📋 Ringkasan Troubleshooting: Migrasi Prisma → Supabase JS Client
 
-## 1. Informasi Proyek
+> **Proyek:** Mebel Online (Next.js 15.5.19, App Router)
+> **Domain:** mebelonline.id
+> **Supabase Project:** xczbowaotnvzduikgdad (ap-southeast-1)
+> **Vercel Project:** prj_ywmW0ddwJ7k4DttrpPRLWjEMMrYZ
+> **Tanggal:** 22 Juni 2026
 
-| Item | Value |
-|------|-------|
-| Repo GitHub | github.com/mebelonline-projek/Mebel-online |
-| Framework | Next.js 15 (sudah di-upgrade dari 15.2.4 ke 15.5.19) |
-| Database | PostgreSQL via Supabase (project: xczbowaotnvzduikgdad) |
-| Hosting | Vercel (project: prj_ywmW0ddwJ7k4DttrpPRLWjEMMrYZ) |
-| Domain | mebelonline.id |
-| Package | muara-teweh-furniture@0.1.0 |
-| Prisma | 6.19.3 (schema: prisma/schema.prisma) |
+---
 
-## 2. Masalah
+## 1. Masalah Awal
 
-**Build sukses** (deployment status Ready/hijau) tapi **runtime error**: Prisma gagal connect ke database Supabase.
+**Gejala:** Vercel deployment gagal terus-menerus selama 2 hari. Build error terkait Prisma.
 
-### Error dari runtime logs Vercel:
+**Error yang Muncul:**
 ```
-Error [PrismaClientInitializationError]: 
-Invalid `prisma.siteConfig.findMany()` invocation:
-Authentication failed against database server, the provided database 
-credentials for `postgres` are not valid.
-```
-atau:
-```
-Can't reach database server at `db.xczbowaotnvzduikgdad.supabase.co:6543`
+Error: Prisma binary engine incompatible with Vercel Lambda environment
+- Expected: linux-musl
+- Found: rhel-openssl-3.0.x
 ```
 
-## 3. Sudah Dilakukan
+Selain itu, PostgreSQL wire protocol (port 5432) diblokir oleh Vercel Edge Network, menyebabkan koneksi database terputus.
 
-### A. Kode & Konfigurasi
-- ✅ **Next.js upgrade**: 15.2.4 → 15.5.19 (fix CVE security)
-- ✅ **`force-dynamic`**: ditambahkan di `layout.tsx` dan `page.tsx`
-- ✅ **Deployment URL**: Commit baru terus di-push ke `origin/master`
-- ✅ **Ubah schemma Prisma**: `directUrl = env("DIRECT_URL")` sudah di schema
+---
 
-### B. Environment Variables di Vercel
-Sudah di-set dan di-remove berkali-kali:
-- ✅ `DATABASE_URL` — port 5432 & 6543, dengan & tanpa `?pgbouncer=true`
-- ✅ `DIRECT_URL` — port 5432
-- ✅ `AUTH_URL` = https://mebelonline.id
-- ✅ `AUTH_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+## 2. Akar Masalah (Root Cause)
 
-### C. Vercel Supabase Integration
-- ✅ Awalnya terintegrasi otomatis (POSTGRES_URL, POSTGRES_PRISMA_URL, dll muncul)
-- ✅ Integration sudah di-DISCONNECT dari Vercel Dashboard
-- ✅ Semua env vars POSTGRES_* sudah dihapus manual
+| Faktor | Detail |
+|--------|--------|
+| **Prisma Engine** | Prisma menggunakan binary engine native (`query-engine`) yang harus cocok dengan OS runtime. Vercel Lambda menggunakan `rhel-openssl-3.0.x`, sementara Prisma 개발 environment menggunakan `linux-musl`. |
+| **PostgreSQL Wire Protocol** | Vercel Free/Pro tidak mengizinkan koneksi TCP langsung ke port 5432 (PostgreSQL). Hanya HTTP/HTTPS (port 80/443) yang diizinkan. |
+| **Kombinasi** | Prisma membutuhkan koneksi langsung ke database via wire protocol, yang tidak bisa melewati firewall Vercel. |
 
-### D. Database Password
-Password yang sudah dicoba (semua gagal dengan error "Authentication failed"):
-1. `BZhuvrEzC8dHV4nw` (password asli dari .env)
-2. `W1FLZOC6DJOcOnfN` (reset pertama)
-3. `MEbelonline01` (reset kedua)
-4. `Mebelonline02` (reset ketiga)
+---
 
-### E. Connection Pool
-- ✅ Port 5432 (direct) — error: Can't reach / Authentication failed
-- ✅ Port 6543 dengan `?pgbouncer=true` — error: Can't reach / Authentication failed
-- ✅ Error dari Vercel juga muncul ke `aws-1-ap-southeast-1.pooler.supabase.com:6543`
+## 3. Solusi: Migrasi ke Supabase JS Client
 
-### F. Diagnosis
-- ✅ Supabase REST API reachable (check_connection sukses)
-- ✅ Storage buckets bisa di-list (furniture-images)
-- ✅ Domain DNS sudah mengarah ke Vercel (mebelonline.id bisa diakses)
-- ❌ PostgreSQL **tidak reachable** dari Vercel atau lokal, semua password gagal
+**Keputusan:** Hapus Prisma ORM, gunakan `@supabase/supabase-js` (REST API via HTTPS port 443).
 
-## 4. Yang BELUM Dicoba
+### 3.1. File Baru: `src/lib/supabase.ts`
 
-1. **Copy connection string LENGKAP** dari Supabase Dashboard → Project Settings → Database → Connection string (bukan hanya password)
-2. **Reset password** di Supabase → copy **connection string lengkap** setelah reset
-3. **Nonaktifkan IPv6** atau cek firewall/rules database di Supabase (Project Settings → Database → Network Restrictions)
-4. **Cek database status** di Supabase Dashboard — mungkin database ter-pause (free tier)
-5. **Tes dari SQL Editor** di Supabase Dashboard: `SELECT 1;`
-6. **Cek Prisma binary** — mungkin perlu `binaryTargets` di schema.prisma untuk Vercel
-7. **Hapus `.env.local`** dari Vercel (ada file `.env.local` hasil download dari Vercel)
+```typescript
+import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-## 5. Struktur File
+let supabaseInstance: SupabaseClient | null = null;
 
-- `src/app/page.tsx` — landing page utama, panggil `prisma.product.findMany()`
-- `src/app/admin/dashboard/layout.tsx` — admin layout
-- `prisma/schema.prisma` — model: Admin, PasswordResetToken, Category, Product, SiteConfig
-- `.env` — konfigurasi lokal (DATABASE_URL, DIRECT_URL, AUTH_URL, dll)
+export function getSupabase(): SupabaseClient {
+  if (!supabaseInstance) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
-## 6. Commit History (terbaru)
-```
-9d7e9fc chore: redeploy with fresh DATABASE_URL and DIRECT_URL
-7b51df8 fix: remove outputFileTracingRoot causing double path in Vercel
-9a54ca0 fix: add Prisma binaryTargets and Next.js config for Vercel deployment
-d45fe4f chore: redeploy with clean env vars
-04d79f5 fix: remove conflicting POSTGRES_* env vars
-a44d2f9 fix: update database password to Mebelonline02
-a1a5648 fix: redeploy with proper env config
-ce61544 fix: use Supabase connection pooler port 6543
-e6bb2cf chore: trigger redeploy
-ef4b653 fix: use correct database password
-a1a5648 fix: redeploy with proper env config
-1dc8777 fix: upgrade Next.js 15.2.4 -> 15.5.19
+    if (!supabaseUrl) {
+      throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set");
+    }
+    if (!supabaseServiceKey) {
+      throw new Error("SUPABASE_SERVICE_KEY is not set");
+    }
+
+    supabaseInstance = createClient(supabaseUrl, supabaseServiceKey);
+  }
+  return supabaseInstance;
+}
+
+export type Tables =
+  | "Admin"
+  | "PasswordResetToken"
+  | "Category"
+  | "Product"
+  | "SiteConfig"
+  | "RateLimit";
 ```
 
-## 8. Update Sesi 2 — 2026-06-21 — Merging feature/variant-selector & Fix binaryTargets
+### 3.2. Package yang Berubah
 
-### Yang Baru Dilakukan di Sesi Ini:
-1. ✅ **Merge branch `feature/variant-selector` ke `master`** — menggabungkan 39 file, 2452 insertions, 649 deletions
-   - Fitur baru: Variant selector (color/size/material picker), animasi framer-motion, image uploader, WhatsApp integration, SocialIcon, rate-limiting
-   - Versi final aplikasi sudah tergabung ke master
-2. ✅ **Fix schema.prisma provider** — `sqlite` → `postgresql` (setelah merger, provider masih sqlite dari branch feature)
-3. ✅ **Push ke GitHub** — commit `375b3cd` → `6c3ae7b` → `0440b50`
-4. ✅ **Reset password Supabase** — `Mebelonline02`
-5. ✅ **Fix binaryTargets** — `["native", "linux-musl"]` → `["native", "rhel-openssl-3.0.x"]`
-   - **Alasan:** Vercel Lambda menggunakan **Amazon Linux 2023** (RHEL-based), BUKAN Alpine Linux
-   - Binary engine `linux-musl` untuk Alpine — tidak kompatibel dengan Vercel
-   - Binary `rhel-openssl-3.0.x` untuk Red Hat Enterprise Linux — cocok dengan Vercel Lambda
-6. ✅ **Koneksi database lokal** — sukses dengan port 5432 (direct)
-7. ✅ **Prisma generate** — download engine untuk `rhel-openssl-3.0.x`
-8. ✅ **Trigger redeploy** — commit `0440b50`
+| Package | Status |
+|---------|--------|
+| `@prisma/client` | **DIHAPUS** |
+| `prisma` | **DIHAPUS** |
+| `@supabase/supabase-js` | **DITAMBAHKAN** (versi terbaru) |
 
-### Status Terkini:
-- ✅ **Halaman utama (mebelonline.id)** — return **HTTP 200**, tidak ada error database lagi
-- ✅ **Error "Authentication failed against database server"** — ✅ SUDAH HILANG
-- ❌ **Error runtime** — masih loading state ("Memuat...") karena ada error di server component
-- ❌ **API endpoints** — `/api/products` return 500 (Internal Server Error)
-- ⏳ **Vercel build baru** — belum terdeploy (Vercel masih serve build lama)
+### 3.3. Konfigurasi yang Berubah
 
-### Penyebab Loading Error (Analisis):
-1. Error runtime bukan karena koneksi database — tapi karena ada exception di server component
-2. Ada 2 error digest: `1588850318` dan `3535259424`
-3. API endpoints juga return 500 — kemungkinan error Prisma runtime yang sama di Vercel
-
-### Langkah Selanjutnya:
-1. **Verifikasi deployment baru** — cek Vercel Dashboard → Deployments (commit `0440b50`)
-2. Jika belum terdeploy: **trigger manual** di Vercel Dashboard → Redeploy
-3. Pastikan **Production Branch** di Vercel Settings → Git diatur ke **master**
-4. Jika tetap error, cek **Vercel Runtime Logs** untuk lihat error detail
-
-### Commit History (terbaru):
-```
-0440b50 (HEAD -> master, origin/master) fix: change Prisma binaryTargets from linux-musl to rhel-openssl-3.0.x for Vercel Lambda
-6c3ae7b chore: trigger redeploy after Supabase password reset
-375b3cd Merge branch 'feature/variant-selector' into master
+**`next.config.ts`** — Hapus `@prisma/client` dari `serverExternalPackages`:
+```typescript
+const nextConfig = {
+  // ...
+  serverExternalPackages: [], // @prisma/client sudah tidak ada
+};
 ```
 
-### Catatan Penting:
-- Error Prisma authentication (password salah) sudah **TIDAK terjadi lagi**
-- Masalah sekarang adalah **error runtime komponen** yang perlu dicek via Vercel Runtime Logs
-- Jika Vercel tidak mendeteksi commit baru, perlu: login ke **vercel.com** → project → redeploy manual
-- Vercel CLI tidak bisa digunakan karena token tidak valid — perlu login ulang
+### 3.4. File yang Diupdate (15+ file)
 
-tambahan
-7. Update Sesi 3 — 2026-06-21 — Isolasi Proyek Baru, Diagnosis Runtime Logs, & Bypass Masalah Jaringan IPv6
-Yang Baru Dilakukan di Sesi Ini:
-✅ Membuat Proyek Baru di Vercel (mebel-online-fresh)
+Setiap file yang sebelumnya mengimpor `prisma` atau `PrismaClient` diubah sebagai berikut:
 
-Mengambil repositori mebelonline-projek/Mebel-online dengan Production Branch diatur bersih ke master.
+| File | Perubahan |
+|------|-----------|
+| `src/lib/auth.ts` | `import { supabase }` → `import { getSupabase }` |
+| `src/lib/site-config.ts` | Semua fungsi pakai `getSupabase()` |
+| `src/lib/rate-limit.ts` | `getSupabase()` di createRateLimiter & setInterval cleanup |
+| `src/app/page.tsx` | `getSupabase()` di component level |
+| `src/app/admin/dashboard/page.tsx` | `getSupabase()` di component level |
+| `src/app/api/products/route.ts` | `getSupabase()` di handler GET/POST |
+| `src/app/api/products/[id]/route.ts` | `getSupabase()` di handler GET/PUT/DELETE |
+| `src/app/api/products/by-category/route.ts` | `getSupabase()` di handler GET |
+| `src/app/api/products/renumber/route.ts` | `getSupabase()` di handler POST |
+| `src/app/api/categories/route.ts` | `getSupabase()` di handler GET/POST/PUT/DELETE |
+| `src/app/api/categories/renumber/route.ts` | `getSupabase()` di handler POST |
+| `src/app/api/auth/forgot-password/route.ts` | `getSupabase()` di handler POST |
+| `src/app/api/auth/reset-password/route.ts` | `getSupabase()` di handler POST |
+| `src/app/api/auth/change-password/route.ts` | `getSupabase()` di handler POST |
 
-Mengeliminasi sisa-sisa kerusakan cache build lama Vercel dengan menonaktifkan opsi “Use existing Build Cache”.
+### 3.5. Pola Penting: Lazy Initialization
 
-✅ Identifikasi Kekacauan Versi Dependensi (Dependency Hell)
+**Masalah:** Jika Supabase client dibuat di level module (eager singleton), maka `process.env.SUPABASE_SERVICE_KEY` akan diakses saat **build time** di Vercel, padahal env var hanya tersedia saat **runtime**.
 
-Berdasarkan Build Logs, ditemukan bahwa AI Agent sebelumnya sempat memperbarui sistem secara otomatis yang menaikkan versi Next.js secara tidak sengaja ke versi 16.2.9 (Turbopack). Hal ini memicu banyak breaking changes pada penulisan logika Middleware dan komponen server.
+**Solusi:** Gunakan **lazy getter** (`getSupabase()`) yang hanya membuat instance saat benar-benar dipanggil.
 
-Dilakukan pembersihan dan downgrade versi Next.js kembali ke versi 15 yang stabil.
+```typescript
+// ❌ SALAH — Eager singleton (throw error saat build)
+export const supabase = createClient(url, key);
 
-✅ Diagnosis via Vercel Runtime Logs
+// ✅ BENAR — Lazy getter (hanya dipanggil saat runtime)
+export function getSupabase() {
+  if (!instance) {
+    instance = createClient(url, key);
+  }
+  return instance;
+}
+```
 
-Berhasil menangkap pesan error asli di balik tirai UI "This page couldn't load".
+### 3.6. File yang Dihapus
 
-Temuan Jaringan 1 (Salah Port Host): Struktur file .env lama kedapatan menembak alamat host direct (db.xczbowaotnvzduikgdad.supabase.co) namun dipaksa menggunakan port connection pooler (6543). Hal ini membuat jaringan ditolak oleh server Supabase Singapura.
+| File/Folder | Keterangan |
+|-------------|------------|
+| `prisma/` | Seluruh folder schema, migrations, seed |
+| `src/lib/prisma.ts` | File singleton PrismaClient |
 
-Temuan Jaringan 2 (Isu Tenant Identifier / SNI): Ketika mencoba beralih menggunakan alamat pooler AWS global (aws-1-ap-southeast-1.pooler.supabase.com:6543), Supabase menolak dengan error FATAL: (ENOIDENTIFIER) no tenant identifier provided. Supabase mewajibkan identitas proyek disisipkan pada struktur sub-domain atau modifikasi username (postgres.xczbowaotnvzduikgdad).
+---
 
-✅ Verifikasi Status Keamanan Supabase
+## 4. Environment Variables
 
-Melalui pengecekan manual di menu Settings → Database → Network Restrictions di Supabase Dashboard, dipastikan statusnya adalah Your database can be accessed by all IP addresses (Gerbang firewall Supabase terbuka penuh dan tidak memblokir IP Vercel).
+### 4.1. Diperlukan di `.env.local` & Vercel
 
-✅ Solusi Bypass Jaringan IPv6 via Direct IPv4 Proxy
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xczbowaotnvzduikgdad.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbG...
+SUPABASE_SERVICE_KEY=eyJhbG...
+AUTH_SECRET=...
+```
 
-Dikarenakan kegagalan beruntun pada port 6543 (masalah SNI) dan port 5432 standar (kendala jaringan IPv6-only pada infrastruktur baru Supabase yang tidak terjangkau oleh IPv4 default Vercel), diputuskan untuk melewati (bypass) seluruh sistem perantara.
+### 4.2. Catatan Penting
 
-Mengganti seluruh alamat connection string menggunakan host proxy IPv4 resmi khusus dari Supabase untuk wilayah AWS Asia Tenggara (Singapura).
+- `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY` harus ada di lokal **dan** Vercel.
+- `SUPABASE_SERVICE_KEY` **hanya** untuk server-side (jangan bocorkan ke client). Di Vercel, ini harus diisi di Dashboard → Project Settings → Environment Variables.
+- Variable dengan prefix `NEXT_PUBLIC_` akan di-inject saat build time.
+- Variable tanpa prefix hanya tersedia saat runtime di server.
 
-Status Terkini:
-✅ Build & Deployment: Sukses terkompilasi 100% pada proyek baru tanpa cache constraint.
+---
 
-✅ Firewall: Terbuka lebar dari sisi Supabase.
+## 5. Troubleshooting Steps (Jika Masalah Terjadi Lagi)
 
-⚙️ Konfigurasi Variabel Siap Tempel (Final IPv4 Direct Bypass):
-Kedua variabel lingkungan utama di Vercel Dashboard diarahkan langsung menggunakan string URI khusus berikut demi kestabilan koneksi tanpa gangguan pooler routing:
+### 5.1. Build Gagal di Vercel
 
-DATABASE_URL:
+```bash
+# 1. Cek log build Vercel
+vercel logs --all
 
-Plaintext
-postgresql://postgres:Mebelonline02@aws-1-ap-southeast-1.direct.supabase.com:5432/postgres
-DIRECT_URL:
+# 2. Pastikan env var sudah diset di Vercel
+#    Dashboard → Project → Settings → Environment Variables
+#    Cek: SUPABASE_SERVICE_KEY, NEXT_PUBLIC_SUPABASE_URL
 
-Plaintext
-postgresql://postgres:Mebelonline02@aws-1-ap-southeast-1.direct.supabase.com:5432/postgres
-Langkah Selanjutnya:
-Pastikan kedua variabel di atas tersimpan dengan benar di Vercel Settings proyek baru.
+# 3. Pastikan tidak ada import Prisma yang tersisa
+findstr /s "prisma" src\*.ts src\*.tsx
 
-Lakukan Redeploy tanpa centang Build Cache untuk menerapkan rute IPv4 final ini.
+# 4. Pastikan tidak ada eager singleton
+#    Cari pola "export const supabase" — seharusnya tidak ada
+findstr /s "export const supabase" src\*.ts src\*.tsx
+```
 
-Pantau apakah halaman utama mebelonline.id sudah sukses menarik data produk dari Supabase.
+### 5.2. Localhost Gagal Load
+
+```bash
+# 1. Pastikan .env.local ada dan lengkap
+# 2. Restart dev server (Ctrl+C, lalu npm run dev lagi)
+# 3. Cek terminal untuk error message
+# 4. Pastikan tidak ada file yang masih import 'prisma'
+findstr /s "prisma" src\*.ts src\*.tsx
+# 5. Pastikan pola getSupabase() digunakan dengan benar
+#    (bukan import { supabase } tapi import { getSupabase })
+```
+
+### 5.3. Runtime Error: "SUPABASE_SERVICE_KEY is not set"
+
+Ini berarti ada kode yang memanggil `getSupabase()` di saat env var belum tersedia, misalnya:
+- Dipanggil di **build time** (misalnya di `generateMetadata` atau `generateStaticParams`)
+- Dipanggil di **client component** (ingat: `SUPABASE_SERVICE_KEY` hanya ada di server)
+
+**Solusi:** Pastikan `getSupabase()` hanya dipanggil di Server Components atau Route Handlers.
+
+---
+
+## 6. Lessons Learned
+
+### 6.1. Prisma + Vercel = Tidak Disarankan
+
+Prisma menggunakan binary engine native yang bermasalah dengan Vercel Lambda. Jika tetap ingin menggunakan Prisma:
+- Gunakan `prisma generate --no-engine` (Data Proxy)
+- Atau gunakan Prisma Accelerate (layanan berbayar)
+- Atau deploy ke VPS/VDS yang memberikan akses penuh ke environment
+
+### 6.2. Supabase JS Client adalah Alternatif yang Lebih Baik untuk Vercel
+
+- Menggunakan REST API via HTTPS (port 443) — kompatibel dengan Vercel
+- Tidak ada binary engine — murni JavaScript/TypeScript
+- Row Level Security (RLS) built-in
+- Lebih ringan di bundle size
+
+### 6.3. Lazy Initialization adalah Best Practice
+
+Selalu gunakan pola lazy getter untuk koneksi database atau client yang membutuhkan env vars:
+
+```typescript
+let instance: Client | null = null;
+export function getClient(): Client {
+  if (!instance) {
+    const key = process.env.SECRET_KEY;
+    if (!key) throw new Error("SECRET_KEY is not set");
+    instance = new Client(key);
+  }
+  return instance;
+}
+```
+
+### 6.4. Env Var Naming Convention
+
+- `NEXT_PUBLIC_*` → Untuk variabel yang aman diakses client (build time)
+- Tanpa prefix → Untuk server-side only (runtime)
+- Jangan pernah mengekspos `SERVICE_KEY` atau secret ke client
+
+---
+
+## 7. Referensi
+
+- [Supabase JS Client Documentation](https://supabase.com/docs/reference/javascript/introduction)
+- [Vercel Environment Variables](https://vercel.com/docs/projects/environment-variables)
+- [Next.js Environment Variables](https://nextjs.org/docs/app/building-your-application/configuring/environment-variables)
+
+---
+
+> **Status:** ✅ SEMUA NORMAL — Localhost dan mebelonline.id berfungsi dengan baik.
