@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { getAllSettings } from "@/lib/site-config";
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
@@ -48,28 +48,44 @@ export async function generateMetadata(): Promise<Metadata> {
 const INITIAL_PRODUCT_LIMIT = 20;
 
 export default async function HomePage() {
-  const [settings, categories, products, totalProducts] = await Promise.all([
+  const [settings, categoriesResult, productsResult, countResult] = await Promise.all([
     getAllSettings(),
-    prisma.category.findMany({
-      include: { _count: { select: { products: true } } },
-      orderBy: { sortOrder: "asc" },
-    }),
-    prisma.product.findMany({
-      where: { isActive: true },
-      include: {
-        category: { select: { name: true, slug: true } },
-      },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-      take: INITIAL_PRODUCT_LIMIT,
-    }),
-    prisma.product.count({ where: { isActive: true } }),
+    supabase
+      .from("Category")
+      .select("*, products:Product(count)")
+      .order("sortOrder", { ascending: true }),
+    supabase
+      .from("Product")
+      .select("*, category:Category(name, slug)")
+      .eq("isActive", true)
+      .order("sortOrder", { ascending: true })
+      .order("createdAt", { ascending: false })
+      .limit(INITIAL_PRODUCT_LIMIT),
+    supabase
+      .from("Product")
+      .select("id", { count: "exact", head: true })
+      .eq("isActive", true),
   ]);
 
-  const parsedProducts = products.map((p) => ({
+  const categories = categoriesResult.data?.map((c) => ({
+    id: c.id,
+    name: c.name,
+    slug: c.slug,
+    description: c.description,
+    image: c.image,
+    sortOrder: c.sortOrder,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+    _count: { products: c.products?.[0]?.count ?? 0 },
+  })) ?? [];
+
+  const products = (productsResult.data ?? []).map((p) => ({
     ...p,
     images: p.images ? JSON.parse(p.images) : [],
     variants: p.variants ? JSON.parse(p.variants) : [],
   }));
+
+  const totalProducts = countResult.count ?? 0;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -116,7 +132,7 @@ export default async function HomePage() {
 
       {/* Main Catalog — selalu tampil, dengan filter kategori */}
       <ProductGrid
-        products={parsedProducts}
+        products={products}
         categories={categories}
         waNumber={settings.wa_number}
         waMessage={settings.wa_message}

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
 
 // POST /api/categories/renumber — Beri nomor urut 1,2,3... ke semua kategori
@@ -9,20 +9,35 @@ export async function POST() {
     if (error) return error;
 
     // Ambil semua kategori urut sesuai tampilan (sortOrder ASC, name ASC)
-    const categories = await prisma.category.findMany({
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true },
-    });
+    const { data: categories, error: findError } = await supabase
+      .from("Category")
+      .select("id")
+      .order("sortOrder", { ascending: true })
+      .order("name", { ascending: true });
 
-    // Update berurutan dalam transaction
-    await prisma.$transaction(
-      categories.map((cat, index) =>
-        prisma.category.update({
-          where: { id: cat.id },
-          data: { sortOrder: index + 1 },
-        })
-      )
-    );
+    if (findError || !categories) {
+      console.error("Renumber categories error:", findError);
+      return NextResponse.json(
+        { success: false, error: "Gagal mengambil data kategori." },
+        { status: 500 }
+      );
+    }
+
+    // Update berurutan
+    for (let i = 0; i < categories.length; i++) {
+      const { error: updateError } = await supabase
+        .from("Category")
+        .update({ sortOrder: i + 1 })
+        .eq("id", categories[i].id);
+
+      if (updateError) {
+        console.error("Renumber update error:", updateError);
+        return NextResponse.json(
+          { success: false, error: "Gagal mengurutkan ulang kategori." },
+          { status: 500 }
+        );
+      }
+    }
 
     return NextResponse.json({
       success: true,

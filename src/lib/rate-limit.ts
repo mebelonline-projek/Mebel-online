@@ -1,11 +1,11 @@
 /**
- * Rate limiter berbasis database (Prisma).
+ * Rate limiter berbasis database (Supabase).
  * Data persist meski server restart — cocok untuk Vercel serverless.
  *
  * Untuk production multi-instance skala besar, ganti dengan Redis/Vercel KV.
  */
 
-import { prisma } from "./prisma";
+import { supabase } from "./supabase";
 
 interface RateLimiterConfig {
   windowMs: number;
@@ -24,28 +24,32 @@ export function createRateLimiter({ windowMs, maxRequests }: RateLimiterConfig) 
   return async (identifier: string, action: string): Promise<{ allowed: boolean; remaining: number }> => {
     try {
       const now = new Date();
-      const key = `${action}:${identifier}`;
 
       // Cari record yang ada
-      const existing = await prisma.rateLimit.findUnique({
-        where: { identifier_action: { identifier, action } },
-      });
+      const { data: existing } = await supabase
+        .from("RateLimit")
+        .select("*")
+        .eq("identifier", identifier)
+        .eq("action", action)
+        .single();
 
-      if (!existing || existing.expiresAt <= now) {
+      if (!existing || new Date(existing.expiresAt) <= now) {
         // Buat baru (atau reset)
-        await prisma.rateLimit.upsert({
-          where: { identifier_action: { identifier, action } },
-          update: {
-            count: 1,
-            expiresAt: new Date(now.getTime() + windowMs),
-          },
-          create: {
+        const { error } = await supabase.from("RateLimit").upsert(
+          {
             identifier,
             action,
             count: 1,
-            expiresAt: new Date(now.getTime() + windowMs),
+            expiresAt: new Date(now.getTime() + windowMs).toISOString(),
           },
-        });
+          { onConflict: "identifier_action" }
+        );
+
+        if (error) {
+          console.error("Rate limiter upsert error:", error);
+          return { allowed: true, remaining: maxRequests };
+        }
+
         return { allowed: true, remaining: maxRequests - 1 };
       }
 
@@ -54,10 +58,15 @@ export function createRateLimiter({ windowMs, maxRequests }: RateLimiterConfig) 
       }
 
       // Increment counter
-      await prisma.rateLimit.update({
-        where: { id: existing.id },
-        data: { count: existing.count + 1 },
-      });
+      const { error: updateError } = await supabase
+        .from("RateLimit")
+        .update({ count: existing.count + 1 })
+        .eq("id", existing.id);
+
+      if (updateError) {
+        console.error("Rate limiter update error:", updateError);
+        return { allowed: true, remaining: maxRequests };
+      }
 
       return { allowed: true, remaining: maxRequests - existing.count - 1 };
     } catch (error) {
@@ -68,16 +77,19 @@ export function createRateLimiter({ windowMs, maxRequests }: RateLimiterConfig) 
   };
 }
 
-// Hapus entry expired setiap 5 menit
-setInterval(async () => {
-  try {
-    await prisma.rateLimit.deleteMany({
-      where: { expiresAt: { lte: new Date() } },
-    });
-  } catch {
-    // Silent fail
-  }
-}, 5 * 60 * 1000);
+// Hapus entry expired setiap 5 menit (hanya jalan di server non-serverless)
+if (typeof setInterval !== "undefined") {
+  setInterval(async () => {
+    try {
+      await supabase
+        .from("RateLimit")
+        .delete()
+        .lte("expiresAt", new Date().toISOString());
+    } catch {
+      // Silent fail
+    }
+  }, 5 * 60 * 1000);
+}
 
 // Rate limiter presets
 export const authRateLimiter = createRateLimiter({

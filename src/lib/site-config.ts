@@ -1,4 +1,4 @@
-import { prisma } from "./prisma";
+import { supabase } from "./supabase";
 import type { SiteSettings } from "@/types";
 
 const DEFAULT_SETTINGS: SiteSettings = {
@@ -30,9 +30,15 @@ const SETTING_KEYS = Array.from(
 );
 
 export async function getAllSettings(): Promise<SiteSettings> {
-  const rows = await prisma.siteConfig.findMany({
-    where: { key: { in: SETTING_KEYS } },
-  });
+  const { data: rows, error } = await supabase
+    .from("SiteConfig")
+    .select("*")
+    .in("key", SETTING_KEYS);
+
+  if (error || !rows) {
+    console.error("Error fetching settings:", error);
+    return DEFAULT_SETTINGS;
+  }
 
   const map = new Map(rows.map((r) => [r.key, r.value]));
 
@@ -57,33 +63,47 @@ export async function getAllSettings(): Promise<SiteSettings> {
 }
 
 export async function getSetting(key: string): Promise<string | null> {
-  const row = await prisma.siteConfig.findUnique({ where: { key } });
-  return row?.value ?? null;
+  const { data: row, error } = await supabase
+    .from("SiteConfig")
+    .select("*")
+    .eq("key", key)
+    .single();
+
+  if (error || !row) return null;
+  return row.value ?? null;
 }
 
 export async function updateSetting(
   key: string,
   value: string
 ): Promise<void> {
-  await prisma.siteConfig.upsert({
-    where: { key },
-    update: { value },
-    create: { key, value },
-  });
+  const { error } = await supabase.from("SiteConfig").upsert(
+    { key, value },
+    { onConflict: "key" }
+  );
+
+  if (error) {
+    console.error("Error updating setting:", error);
+    throw error;
+  }
 }
 
 export async function updateSettings(
   settings: Partial<SiteSettings>
 ): Promise<void> {
-  const upserts = Object.entries(settings).map(([key, value]) => {
+  const entries = Object.entries(settings);
+  const upserts = entries.map(([key, value]) => {
     const stringValue =
       typeof value === "object" ? JSON.stringify(value) : String(value);
-    return prisma.siteConfig.upsert({
-      where: { key },
-      update: { value: stringValue },
-      create: { key, value: stringValue },
-    });
+    return { key, value: stringValue };
   });
 
-  await prisma.$transaction(upserts);
+  const { error } = await supabase.from("SiteConfig").upsert(upserts, {
+    onConflict: "key",
+  });
+
+  if (error) {
+    console.error("Error updating settings:", error);
+    throw error;
+  }
 }

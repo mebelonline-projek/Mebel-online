@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { hashPassword } from "@/lib/auth";
 import { authRateLimiter } from "@/lib/rate-limit";
 
@@ -38,22 +38,28 @@ export async function POST(request: Request) {
     }
 
     // Cari token yang valid
-    const resetToken = await prisma.passwordResetToken.findUnique({
-      where: { token },
-    });
+    const { data: resetToken, error: findError } = await supabase
+      .from("PasswordResetToken")
+      .select("*")
+      .eq("token", token)
+      .single();
 
-    if (!resetToken) {
+    if (findError || !resetToken) {
       return NextResponse.json(
         { success: false, error: "Token tidak valid." },
         { status: 400 }
       );
     }
 
-    if (resetToken.expiresAt < new Date()) {
+    const now = new Date();
+    const expiresAt = new Date(resetToken.expiresAt);
+
+    if (expiresAt < now) {
       // Hapus token yang expired
-      await prisma.passwordResetToken.delete({
-        where: { id: resetToken.id },
-      });
+      await supabase
+        .from("PasswordResetToken")
+        .delete()
+        .eq("id", resetToken.id);
 
       return NextResponse.json(
         { success: false, error: "Token sudah kedaluwarsa. Silakan minta reset password lagi." },
@@ -63,15 +69,24 @@ export async function POST(request: Request) {
 
     // Update password admin
     const hashedPassword = await hashPassword(password);
-    await prisma.admin.update({
-      where: { email: resetToken.email },
-      data: { password: hashedPassword },
-    });
+    const { error: updateError } = await supabase
+      .from("Admin")
+      .update({ password: hashedPassword })
+      .eq("email", resetToken.email);
+
+    if (updateError) {
+      console.error("Update password error:", updateError);
+      return NextResponse.json(
+        { success: false, error: "Gagal mengupdate password." },
+        { status: 500 }
+      );
+    }
 
     // Hapus token yang sudah dipakai
-    await prisma.passwordResetToken.delete({
-      where: { id: resetToken.id },
-    });
+    await supabase
+      .from("PasswordResetToken")
+      .delete()
+      .eq("id", resetToken.id);
 
     return NextResponse.json({
       success: true,

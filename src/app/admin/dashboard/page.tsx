@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import AdminHeader from "@/components/admin/AdminHeader";
 import { Package, Tags, CheckCircle, XCircle, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
@@ -6,13 +6,18 @@ import Link from "next/link";
 export const revalidate = 60;
 
 export default async function DashboardOverview() {
-  const [totalProducts, totalCategories, activeProducts, inactiveProducts] =
+  const [totalProductsResult, totalCategoriesResult, activeResult, inactiveResult] =
     await Promise.all([
-      prisma.product.count(),
-      prisma.category.count(),
-      prisma.product.count({ where: { isActive: true } }),
-      prisma.product.count({ where: { isActive: false } }),
+      supabase.from("Product").select("id", { count: "exact", head: true }),
+      supabase.from("Category").select("id", { count: "exact", head: true }),
+      supabase.from("Product").select("id", { count: "exact", head: true }).eq("isActive", true),
+      supabase.from("Product").select("id", { count: "exact", head: true }).eq("isActive", false),
     ]);
+
+  const totalProducts = totalProductsResult.count ?? 0;
+  const totalCategories = totalCategoriesResult.count ?? 0;
+  const activeProducts = activeResult.count ?? 0;
+  const inactiveProducts = inactiveResult.count ?? 0;
 
   const stats = [
     {

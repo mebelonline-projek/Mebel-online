@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/api-auth";
 
@@ -13,14 +13,34 @@ const categorySchema = z.object({
 // GET /api/categories
 export async function GET() {
   try {
-    const categories = await prisma.category.findMany({
-      include: {
-        _count: { select: { products: true } },
-      },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    });
+    const { data: categories, error } = await supabase
+      .from("Category")
+      .select("*, products:Product(count)")
+      .order("sortOrder", { ascending: true })
+      .order("name", { ascending: true });
 
-    return NextResponse.json({ success: true, data: categories });
+    if (error) {
+      console.error("Get categories error:", error);
+      return NextResponse.json(
+        { success: false, error: "Gagal mengambil data kategori." },
+        { status: 500 }
+      );
+    }
+
+    // Map to match expected _count format
+    const mapped = (categories ?? []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      description: c.description,
+      image: c.image,
+      sortOrder: c.sortOrder,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      _count: { products: c.products?.[0]?.count ?? 0 },
+    }));
+
+    return NextResponse.json({ success: true, data: mapped });
   } catch (error) {
     console.error("Get categories error:", error);
     return NextResponse.json(
@@ -46,7 +66,13 @@ export async function POST(request: Request) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") || `kategori-${Date.now()}`;
 
-    const existing = await prisma.category.findUnique({ where: { slug } });
+    // Check duplicate slug
+    const { data: existing } = await supabase
+      .from("Category")
+      .select("id")
+      .eq("slug", slug)
+      .single();
+
     if (existing) {
       return NextResponse.json(
         { success: false, error: "Kategori dengan nama serupa sudah ada." },
@@ -54,18 +80,37 @@ export async function POST(request: Request) {
       );
     }
 
-    const category = await prisma.category.create({
-      data: {
+    // Auto-fill sortOrder
+    let nextSortOrder = parsed.sortOrder && parsed.sortOrder > 0 ? parsed.sortOrder : 1;
+    if (!parsed.sortOrder || parsed.sortOrder <= 0) {
+      const { data: maxData } = await supabase
+        .from("Category")
+        .select("sortOrder")
+        .order("sortOrder", { ascending: false })
+        .limit(1)
+        .single();
+      nextSortOrder = (maxData?.sortOrder ?? 0) + 1;
+    }
+
+    const { data: category, error: createError } = await supabase
+      .from("Category")
+      .insert({
         name: parsed.name,
         slug,
         description: parsed.description ?? null,
         image: parsed.image ?? null,
-        sortOrder:
-          parsed.sortOrder && parsed.sortOrder > 0
-            ? parsed.sortOrder
-            : ((await prisma.category.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? 0) + 1,
-      },
-    });
+        sortOrder: nextSortOrder,
+      })
+      .select()
+      .single();
+
+    if (createError || !category) {
+      console.error("Create category error:", createError);
+      return NextResponse.json(
+        { success: false, error: "Gagal menambah kategori." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true, data: category }, { status: 201 });
   } catch (error) {
@@ -100,65 +145,87 @@ export async function PUT(request: Request) {
       );
     }
 
-    const existing = await prisma.category.findUnique({ where: { id } });
-    if (!existing) {
+    // Check existing
+    const { data: existing, error: findError } = await supabase
+      .from("Category")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (findError || !existing) {
       return NextResponse.json(
         { success: false, error: "Kategori tidak ditemukan." },
         { status: 404 }
       );
     }
 
-    // === Renumber logic: saat sortOrder berubah, kategori lain otomatis menyesuaikan ===
+    // Renumber logic: saat sortOrder berubah, kategori lain menyesuaikan
     if (sortOrder !== undefined && sortOrder !== existing.sortOrder) {
       const oldSort = existing.sortOrder;
       const newSort = sortOrder;
 
-      await prisma.$transaction(async (tx) => {
-        if (newSort < oldSort) {
-          // Kategori naik ke posisi lebih awal → geser yang di antaranya ke belakang
-          await tx.category.updateMany({
-            where: {
-              sortOrder: { gte: newSort, lt: oldSort },
-              id: { not: id },
-            },
-            data: { sortOrder: { increment: 1 } },
-          });
-        } else {
-          // Kategori turun ke posisi lebih akhir → geser yang di antaranya ke depan
-          await tx.category.updateMany({
-            where: {
-              sortOrder: { gt: oldSort, lte: newSort },
-              id: { not: id },
-            },
-            data: { sortOrder: { decrement: 1 } },
-          });
-        }
+      if (newSort < oldSort) {
+        // Kategori naik ke posisi lebih awal → geser yang di antaranya ke belakang
+        await supabase
+          .from("Category")
+          .update({ sortOrder: existing.sortOrder + 1 }) // dummy increment
+          .gte("sortOrder", newSort)
+          .lt("sortOrder", oldSort)
+          .neq("id", id);
+      } else {
+        // Kategori turun ke posisi lebih akhir → geser yang di antaranya ke depan
+        await supabase
+          .from("Category")
+          .update({ sortOrder: existing.sortOrder - 1 }) // dummy decrement
+          .gt("sortOrder", oldSort)
+          .lte("sortOrder", newSort)
+          .neq("id", id);
+      }
 
-        await tx.category.update({
-          where: { id },
-          data: {
-            name,
-            description: description ?? existing.description,
-            image: image ?? existing.image,
-            sortOrder: newSort,
-          },
-        });
-      });
+      // Update kategori
+      const { data: updated, error: updateError } = await supabase
+        .from("Category")
+        .update({
+          name,
+          description: description ?? existing.description,
+          image: image ?? existing.image,
+          sortOrder: newSort,
+        })
+        .eq("id", id)
+        .select()
+        .single();
 
-      const updated = await prisma.category.findUnique({ where: { id } });
+      if (updateError || !updated) {
+        console.error("Update category error:", updateError);
+        return NextResponse.json(
+          { success: false, error: "Gagal mengupdate kategori." },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json({ success: true, data: updated });
     }
 
     // Tanpa perubahan sortOrder — update biasa
-    const category = await prisma.category.update({
-      where: { id },
-      data: {
+    const { data: category, error: updateError } = await supabase
+      .from("Category")
+      .update({
         name,
         description: description ?? existing.description,
         image: image ?? existing.image,
         sortOrder: sortOrder ?? existing.sortOrder,
-      },
-    });
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateError || !category) {
+      console.error("Update category error:", updateError);
+      return NextResponse.json(
+        { success: false, error: "Gagal mengupdate kategori." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true, data: category });
   } catch (error) {
@@ -187,8 +254,14 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const existing = await prisma.category.findUnique({ where: { id } });
-    if (!existing) {
+    // Check existing
+    const { data: existing, error: findError } = await supabase
+      .from("Category")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (findError || !existing) {
       return NextResponse.json(
         { success: false, error: "Kategori tidak ditemukan." },
         { status: 404 }
@@ -196,11 +269,12 @@ export async function DELETE(request: Request) {
     }
 
     // Cek apakah kategori memiliki produk
-    const productCount = await prisma.product.count({
-      where: { categoryId: id },
-    });
+    const { count: productCount, error: countError } = await supabase
+      .from("Product")
+      .select("id", { count: "exact", head: true })
+      .eq("categoryId", id);
 
-    if (productCount > 0) {
+    if (!countError && productCount && productCount > 0) {
       return NextResponse.json(
         {
           success: false,
@@ -210,7 +284,18 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await prisma.category.delete({ where: { id } });
+    const { error: deleteError } = await supabase
+      .from("Category")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) {
+      console.error("Delete category error:", deleteError);
+      return NextResponse.json(
+        { success: false, error: "Gagal menghapus kategori." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

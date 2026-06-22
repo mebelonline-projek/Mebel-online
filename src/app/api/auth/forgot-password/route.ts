@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { forgotPasswordRateLimiter } from "@/lib/rate-limit";
@@ -34,9 +34,11 @@ export async function POST(request: Request) {
     }
 
     // Cek apakah email terdaftar sebagai admin
-    const admin = await prisma.admin.findUnique({
-      where: { email: email.toLowerCase() },
-    });
+    const { data: admin } = await supabase
+      .from("Admin")
+      .select("id")
+      .eq("email", email.toLowerCase())
+      .single();
 
     // Tetap return sukses meskipun email tidak ditemukan (keamanan)
     if (!admin) {
@@ -48,21 +50,30 @@ export async function POST(request: Request) {
     }
 
     // Hapus token lama untuk email ini
-    await prisma.passwordResetToken.deleteMany({
-      where: { email: email.toLowerCase() },
-    });
+    await supabase
+      .from("PasswordResetToken")
+      .delete()
+      .eq("email", email.toLowerCase());
 
     // Generate token baru
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 jam
 
-    await prisma.passwordResetToken.create({
-      data: {
+    const { error: createError } = await supabase
+      .from("PasswordResetToken")
+      .insert({
         email: email.toLowerCase(),
         token,
-        expiresAt,
-      },
-    });
+        expiresAt: expiresAt.toISOString(),
+      });
+
+    if (createError) {
+      console.error("Create reset token error:", createError);
+      return NextResponse.json(
+        { success: false, error: "Gagal membuat token reset." },
+        { status: 500 }
+      );
+    }
 
     // Kirim email
     const resetLink = `${process.env.AUTH_URL ?? "http://localhost:3000"}/admin/reset-password?token=${token}`;

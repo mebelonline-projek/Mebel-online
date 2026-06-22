@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
 import { deleteFromSupabase } from "@/lib/upload";
 
@@ -10,14 +10,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const product = await prisma.product.findUnique({
-      where: { id },
-      include: {
-        category: { select: { id: true, name: true, slug: true } },
-      },
-    });
+    const { data: product, error } = await supabase
+      .from("Product")
+      .select("*, category:Category(id, name, slug)")
+      .eq("id", id)
+      .single();
 
-    if (!product) {
+    if (error || !product) {
       return NextResponse.json(
         { success: false, error: "Produk tidak ditemukan." },
         { status: 404 }
@@ -62,60 +61,72 @@ export async function PUT(
       );
     }
 
-    const existing = await prisma.product.findUnique({ where: { id } });
-    if (!existing) {
+    // Check existing
+    const { data: existing, error: findError } = await supabase
+      .from("Product")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (findError || !existing) {
       return NextResponse.json(
         { success: false, error: "Produk tidak ditemukan." },
         { status: 404 }
       );
     }
 
-    // === Renumber logic: saat sortOrder berubah, produk lain otomatis menyesuaikan ===
+    // Renumber logic: saat sortOrder berubah, produk lain menyesuaikan
     if (sortOrder !== undefined && sortOrder !== existing.sortOrder) {
       const oldSort = existing.sortOrder;
       const newSort = sortOrder;
 
-      await prisma.$transaction(async (tx) => {
-        if (newSort < oldSort) {
-          // Produk naik ke posisi lebih awal → produk di antaranya digeser mundur
-          await tx.product.updateMany({
-            where: {
-              sortOrder: { gte: newSort, lt: oldSort },
-              id: { not: id },
-            },
-            data: { sortOrder: { increment: 1 } },
-          });
-        } else {
-          // Produk turun ke posisi lebih akhir → produk di antaranya digeser maju
-          await tx.product.updateMany({
-            where: {
-              sortOrder: { gt: oldSort, lte: newSort },
-              id: { not: id },
-            },
-            data: { sortOrder: { decrement: 1 } },
-          });
-        }
+      if (newSort < oldSort) {
+        // Produk naik ke posisi lebih awal → produk di antaranya digeser mundur
+        await supabase
+          .from("Product")
+          .update({ sortOrder: existing.sortOrder + 1 })
+          .gte("sortOrder", newSort)
+          .lt("sortOrder", oldSort)
+          .neq("id", id);
+      } else {
+        // Produk turun ke posisi lebih akhir → produk di antaranya digeser maju
+        await supabase
+          .from("Product")
+          .update({ sortOrder: existing.sortOrder - 1 })
+          .gt("sortOrder", oldSort)
+          .lte("sortOrder", newSort)
+          .neq("id", id);
+      }
 
-        await tx.product.update({
-          where: { id },
-          data: {
-            name,
-            description,
-            image: image ?? existing.image,
-            images: images ? JSON.stringify(images) : existing.images,
-            variants: variants ? JSON.stringify(variants) : existing.variants,
-            categoryId,
-            isActive: isActive ?? existing.isActive,
-            sortOrder: newSort,
-          },
-        });
-      });
+      // Update produk
+      const { error: updateError } = await supabase
+        .from("Product")
+        .update({
+          name,
+          description: description ?? existing.description,
+          image: image ?? existing.image,
+          images: images ? JSON.stringify(images) : existing.images,
+          variants: variants ? JSON.stringify(variants) : existing.variants,
+          categoryId,
+          isActive: isActive ?? existing.isActive,
+          sortOrder: newSort,
+        })
+        .eq("id", id);
+
+      if (updateError) {
+        console.error("Update product error:", updateError);
+        return NextResponse.json(
+          { success: false, error: "Gagal mengupdate produk." },
+          { status: 500 }
+        );
+      }
 
       // Ambil ulang data setelah renumber
-      const updated = await prisma.product.findUnique({
-        where: { id },
-        include: { category: { select: { name: true, slug: true } } },
-      });
+      const { data: updated } = await supabase
+        .from("Product")
+        .select("*, category:Category(name, slug)")
+        .eq("id", id)
+        .single();
 
       // Hapus foto lama dari Supabase kalau image berubah
       if (image !== undefined && image !== existing.image && existing.image) {
@@ -133,22 +144,29 @@ export async function PUT(
     }
 
     // Tanpa perubahan sortOrder — update biasa
-    const product = await prisma.product.update({
-      where: { id },
-      data: {
+    const { data: product, error: updateError } = await supabase
+      .from("Product")
+      .update({
         name,
-        description,
+        description: description ?? existing.description,
         image: image ?? existing.image,
         images: images ? JSON.stringify(images) : existing.images,
         variants: variants ? JSON.stringify(variants) : existing.variants,
         categoryId,
         isActive: isActive ?? existing.isActive,
         sortOrder: sortOrder ?? existing.sortOrder,
-      },
-      include: {
-        category: { select: { name: true, slug: true } },
-      },
-    });
+      })
+      .eq("id", id)
+      .select("*, category:Category(name, slug)")
+      .single();
+
+    if (updateError || !product) {
+      console.error("Update product error:", updateError);
+      return NextResponse.json(
+        { success: false, error: "Gagal mengupdate produk." },
+        { status: 500 }
+      );
+    }
 
     // Hapus foto lama dari Supabase kalau image berubah
     if (image !== undefined && image !== existing.image && existing.image) {
@@ -177,8 +195,13 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const existing = await prisma.product.findUnique({ where: { id } });
-    if (!existing) {
+    const { data: existing, error: findError } = await supabase
+      .from("Product")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (findError || !existing) {
       return NextResponse.json(
         { success: false, error: "Produk tidak ditemukan." },
         { status: 404 }
@@ -194,7 +217,18 @@ export async function DELETE(
       await Promise.all(imageList.map((img) => deleteFromSupabase(img)));
     }
 
-    await prisma.product.delete({ where: { id } });
+    const { error: deleteError } = await supabase
+      .from("Product")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) {
+      console.error("Delete product error:", deleteError);
+      return NextResponse.json(
+        { success: false, error: "Gagal menghapus produk." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

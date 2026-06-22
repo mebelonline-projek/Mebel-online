@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
 
 // GET /api/products/by-category?categoryId=xxx — Ringan: hanya id, name, sortOrder
@@ -18,13 +18,22 @@ export async function GET(request: Request) {
       );
     }
 
-    const products = await prisma.product.findMany({
-      where: { categoryId },
-      select: { id: true, name: true, sortOrder: true },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-    });
+    const { data: products, error: findError } = await supabase
+      .from("Product")
+      .select("id, name, sortOrder")
+      .eq("categoryId", categoryId)
+      .order("sortOrder", { ascending: true })
+      .order("createdAt", { ascending: false });
 
-    return NextResponse.json({ success: true, data: products });
+    if (findError) {
+      console.error("Get products by category error:", findError);
+      return NextResponse.json(
+        { success: false, error: "Gagal mengambil data produk." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, data: products ?? [] });
   } catch (error) {
     console.error("Get products by category error:", error);
     return NextResponse.json(

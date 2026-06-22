@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
 
 // GET /api/products — Daftar produk (public & admin)
@@ -17,40 +17,43 @@ export async function GET(request: Request) {
       if (error) return error;
     }
 
-    const where: Record<string, unknown> = {};
+    let query = supabase
+      .from("Product")
+      .select("*, category:Category(name, slug)", { count: "exact" });
 
     if (!all) {
-      where.isActive = true;
+      query = query.eq("isActive", true);
     }
 
     if (categorySlug && categorySlug !== "semua") {
-      const category = await prisma.category.findUnique({
-        where: { slug: categorySlug },
-      });
-      if (category) {
-        where.categoryId = category.id;
+      // Dapatkan category id dari slug
+      const { data: cat } = await supabase
+        .from("Category")
+        .select("id")
+        .eq("slug", categorySlug)
+        .single();
+      if (cat) {
+        query = query.eq("categoryId", cat.id);
       }
     }
 
     const skip = (page - 1) * limit;
 
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        where,
-        include: {
-          category: {
-            select: { name: true, slug: true },
-          },
-        },
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-        skip,
-        take: limit,
-      }),
-      prisma.product.count({ where }),
-    ]);
+    const { data: products, error, count } = await query
+      .order("sortOrder", { ascending: true })
+      .order("createdAt", { ascending: false })
+      .range(skip, skip + limit - 1);
+
+    if (error) {
+      console.error("Get products error:", error);
+      return NextResponse.json(
+        { success: false, error: "Gagal mengambil data produk." },
+        { status: 500 }
+      );
+    }
 
     // Parse images & variants JSON strings to arrays
-    const parsedProducts = products.map((p) => ({
+    const parsedProducts = (products ?? []).map((p) => ({
       ...p,
       images: p.images ? JSON.parse(p.images) : [],
       variants: p.variants ? JSON.parse(p.variants) : [],
@@ -63,8 +66,8 @@ export async function GET(request: Request) {
         pagination: {
           page,
           limit,
-          total,
-          totalPages: Math.ceil(total / limit),
+          total: count ?? 0,
+          totalPages: Math.ceil((count ?? 0) / limit),
         },
       },
     });
@@ -94,11 +97,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Auto-fill sortOrder: jika 0 atau tidak dikirim, taruh di urutan paling akhir
-    const nextSortOrder =
-      sortOrder && sortOrder > 0
-        ? sortOrder
-        : ((await prisma.product.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? 0) + 1;
+    // Auto-fill sortOrder
+    let nextSortOrder = sortOrder && sortOrder > 0 ? sortOrder : 1;
+    if (!sortOrder || sortOrder <= 0) {
+      const { data: maxData } = await supabase
+        .from("Product")
+        .select("sortOrder")
+        .order("sortOrder", { ascending: false })
+        .limit(1)
+        .single();
+      nextSortOrder = (maxData?.sortOrder ?? 0) + 1;
+    }
 
     // Generate slug
     const slug = name
@@ -106,21 +115,28 @@ export async function POST(request: Request) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") || `produk-${Date.now()}`;
 
-    const product = await prisma.product.create({
-      data: {
+    const { data: product, error: createError } = await supabase
+      .from("Product")
+      .insert({
         name,
-        slug: `${slug}-${Date.now()}`, // ensure unique
-        description,
+        slug: `${slug}-${Date.now()}`,
+        description: description ?? null,
         image: image ?? null,
         images: images ? JSON.stringify(images) : "[]",
         variants: variants ? JSON.stringify(variants) : "[]",
         categoryId,
         sortOrder: nextSortOrder,
-      },
-      include: {
-        category: { select: { name: true, slug: true } },
-      },
-    });
+      })
+      .select("*, category:Category(name, slug)")
+      .single();
+
+    if (createError || !product) {
+      console.error("Create product error:", createError);
+      return NextResponse.json(
+        { success: false, error: "Gagal menambah produk." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       { success: true, data: product },

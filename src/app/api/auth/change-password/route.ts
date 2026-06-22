@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 
@@ -35,11 +35,13 @@ export async function POST(request: Request) {
     }
 
     // Ambil data admin dari database
-    const admin = await prisma.admin.findUnique({
-      where: { email: session.user.email },
-    });
+    const { data: admin, error: findError } = await supabase
+      .from("Admin")
+      .select("*")
+      .eq("email", session.user.email)
+      .single();
 
-    if (!admin) {
+    if (findError || !admin) {
       return NextResponse.json(
         { success: false, error: "Admin tidak ditemukan." },
         { status: 404 }
@@ -61,10 +63,18 @@ export async function POST(request: Request) {
 
     // Update password
     const hashedPassword = await hashPassword(newPassword);
-    await prisma.admin.update({
-      where: { id: admin.id },
-      data: { password: hashedPassword },
-    });
+    const { error: updateError } = await supabase
+      .from("Admin")
+      .update({ password: hashedPassword })
+      .eq("id", admin.id);
+
+    if (updateError) {
+      console.error("Update password error:", updateError);
+      return NextResponse.json(
+        { success: false, error: "Gagal mengupdate password." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
