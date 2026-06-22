@@ -159,6 +159,7 @@ export default function SettingsPage() {
               <ImageUploader
                 currentImage={settings.site_logo}
                 onImageUploaded={(url) => setSettings((p) => ({ ...p, site_logo: url }))}
+                folder="settings"
               />
             </div>
             <div className="space-y-2">
@@ -191,6 +192,7 @@ export default function SettingsPage() {
               <ImageUploader
                 currentImage={settings.hero_image}
                 onImageUploaded={(url) => setSettings((p) => ({ ...p, hero_image: url }))}
+                folder="settings"
               />
             </div>
             <div className="md:col-span-2 space-y-2">
@@ -224,6 +226,7 @@ export default function SettingsPage() {
               <ImageUploader
                 currentImage={settings.about_image}
                 onImageUploaded={(url) => setSettings((p) => ({ ...p, about_image: url }))}
+                folder="settings"
               />
             </div>
             <div className="md:col-span-2 space-y-2">
@@ -305,7 +308,7 @@ export default function SettingsPage() {
                 Untuk tombol WA di tiap produk, nama produk akan ditambahkan otomatis.
               </p>
             </div>
-            {/* Phone, Email, Address */}
+            {/* Phone (single) */}
             <div className="space-y-2">
               <Label>Nomor Telepon</Label>
               <Input
@@ -313,8 +316,10 @@ export default function SettingsPage() {
                 onChange={(e) =>
                   setSettings((p) => ({ ...p, contact_phone: e.target.value }))
                 }
+                placeholder="(0511) 1234-5678"
               />
             </div>
+            {/* Email & Address */}
             <div className="space-y-2">
               <Label>Email Kontak</Label>
               <Input
@@ -325,7 +330,7 @@ export default function SettingsPage() {
                 type="email"
               />
             </div>
-            <div className="md:col-span-2 space-y-2">
+            <div className="space-y-2">
               <Label>Alamat</Label>
               <Textarea
                 value={settings.contact_address}
@@ -336,6 +341,57 @@ export default function SettingsPage() {
               />
             </div>
           </div>
+        </section>
+
+        {/* Social Media */}
+        <section className="bg-white rounded-2xl border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-lg font-semibold text-gray-900">Media Sosial</h2>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addSocialMedia}
+              className="rounded-full"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Tambah
+            </Button>
+          </div>
+
+          {settings.social_media.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">
+              Belum ada media sosial. Klik &quot;Tambah&quot; untuk menambahkan.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {settings.social_media.map((soc, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Input
+                    placeholder="Platform (Instagram, Facebook...)"
+                    value={soc.platform}
+                    onChange={(e) => updateSocialMedia(i, "platform", e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="URL"
+                    value={soc.url}
+                    onChange={(e) => updateSocialMedia(i, "url", e.target.value)}
+                    className="flex-[2]"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeSocialMedia(i)}
+                    className="h-9 w-9 text-gray-400 hover:text-red-600 shrink-0"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Operating Hours */}
@@ -356,8 +412,7 @@ export default function SettingsPage() {
 
           {settings.operating_hours.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-4">
-              {/* eslint-disable-next-line react/no-unescaped-entities */}
-              Belum ada jam operasional. Klik "Tambah" untuk menambahkan.
+              Belum ada jam operasional. Klik &quot;Tambah&quot; untuk menambahkan.
             </p>
           ) : (
             <div className="space-y-3">
@@ -389,61 +444,8 @@ export default function SettingsPage() {
             </div>
           )}
           <p className="text-xs text-gray-400 mt-3">
-            {/* eslint-disable-next-line react/no-unescaped-entities */}
-            Tampil di bagian kontak (landing page) & footer. Gunakan "Libur" untuk hari libur.
+            Tampil di bagian kontak (landing page) &amp; footer. Gunakan &quot;Libur&quot; untuk hari libur.
           </p>
-        </section>
-
-        {/* Social Media */}
-        <section className="bg-white rounded-2xl border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-lg font-semibold text-gray-900">Media Sosial</h2>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addSocialMedia}
-              className="rounded-full"
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Tambah
-            </Button>
-          </div>
-
-          {settings.social_media.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">
-              {/* eslint-disable-next-line react/no-unescaped-entities */}
-              Belum ada media sosial. Klik "Tambah" untuk menambahkan.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {settings.social_media.map((soc, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <Input
-                    placeholder="Platform (Instagram, Facebook...)"
-                    value={soc.platform}
-                    onChange={(e) => updateSocialMedia(i, "platform", e.target.value)}
-                    className="flex-1"
-                  />
-                  <Input
-                    placeholder="URL"
-                    value={soc.url}
-                    onChange={(e) => updateSocialMedia(i, "url", e.target.value)}
-                    className="flex-[2]"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeSocialMedia(i)}
-                    className="h-9 w-9 text-gray-400 hover:text-red-600 shrink-0"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
         </section>
 
         {/* Footer */}

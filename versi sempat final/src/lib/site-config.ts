@@ -1,4 +1,4 @@
-import { getSupabase } from "./supabase";
+import { prisma } from "./prisma";
 import type { SiteSettings } from "@/types";
 
 const DEFAULT_SETTINGS: SiteSettings = {
@@ -34,20 +34,13 @@ const SETTING_KEYS = Array.from(
   new Set([
     ...Object.keys(DEFAULT_SETTINGS),
     "social_media",
-    "operating_hours",
   ])
 );
 
 export async function getAllSettings(): Promise<SiteSettings> {
-  const { data: rows, error } = await getSupabase()
-    .from("SiteConfig")
-    .select("*")
-    .in("key", SETTING_KEYS);
-
-  if (error || !rows) {
-    console.error("Error fetching settings:", error);
-    return DEFAULT_SETTINGS;
-  }
+  const rows = await prisma.siteConfig.findMany({
+    where: { key: { in: SETTING_KEYS } },
+  });
 
   const map = new Map(rows.map((r) => [r.key, r.value]));
 
@@ -56,19 +49,11 @@ export async function getAllSettings(): Promise<SiteSettings> {
     ...Object.fromEntries(
       SETTING_KEYS.map((key) => {
         const raw = map.get(key);
-        if (
-          (key === "social_media" || key === "operating_hours") &&
-          raw
-        ) {
+        if ((key === "social_media" || key === "operating_hours") && raw) {
           try {
             return [key, JSON.parse(raw)];
           } catch {
-            return [
-              key,
-              key === "social_media"
-                ? []
-                : DEFAULT_SETTINGS.operating_hours,
-            ];
+            return [key, key === "social_media" ? [] : DEFAULT_SETTINGS.operating_hours];
           }
         }
         return [key, raw ?? DEFAULT_SETTINGS[key as keyof SiteSettings]];
@@ -80,47 +65,33 @@ export async function getAllSettings(): Promise<SiteSettings> {
 }
 
 export async function getSetting(key: string): Promise<string | null> {
-  const { data: row, error } = await getSupabase()
-    .from("SiteConfig")
-    .select("*")
-    .eq("key", key)
-    .single();
-
-  if (error || !row) return null;
-  return row.value ?? null;
+  const row = await prisma.siteConfig.findUnique({ where: { key } });
+  return row?.value ?? null;
 }
 
 export async function updateSetting(
   key: string,
   value: string
 ): Promise<void> {
-  const { error } = await getSupabase().from("SiteConfig").upsert(
-    { key, value },
-    { onConflict: "key" }
-  );
-
-  if (error) {
-    console.error("Error updating setting:", error);
-    throw error;
-  }
+  await prisma.siteConfig.upsert({
+    where: { key },
+    update: { value },
+    create: { key, value },
+  });
 }
 
 export async function updateSettings(
   settings: Partial<SiteSettings>
 ): Promise<void> {
-  const entries = Object.entries(settings);
-  const upserts = entries.map(([key, value]) => {
+  const upserts = Object.entries(settings).map(([key, value]) => {
     const stringValue =
       typeof value === "object" ? JSON.stringify(value) : String(value);
-    return { key, value: stringValue };
+    return prisma.siteConfig.upsert({
+      where: { key },
+      update: { value: stringValue },
+      create: { key, value: stringValue },
+    });
   });
 
-  const { error } = await getSupabase().from("SiteConfig").upsert(upserts, {
-    onConflict: "key",
-  });
-
-  if (error) {
-    console.error("Error updating settings:", error);
-    throw error;
-  }
+  await prisma.$transaction(upserts);
 }

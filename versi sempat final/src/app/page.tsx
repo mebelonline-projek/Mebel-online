@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
-import { getSupabase } from "@/lib/supabase";
+import { prisma } from "@/lib/prisma";
 import { getAllSettings } from "@/lib/site-config";
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
-import BentoCatalog from "@/components/landing/BentoCatalog";
+import BentoCatalog from "@/components/landing/bento/BentoCatalog";
 import AboutSection from "@/components/landing/AboutSection";
 import ContactSection from "@/components/landing/ContactSection";
 import Footer from "@/components/landing/Footer";
 import WhatsAppButton from "@/components/landing/WhatsAppButton";
-
-export const revalidate = 60;
 
 export const dynamic = "force-dynamic";
 
@@ -48,45 +46,31 @@ export async function generateMetadata(): Promise<Metadata> {
 const INITIAL_PRODUCT_LIMIT = 20;
 
 export default async function HomePage() {
-  const supabase = getSupabase();
-  const [settings, categoriesResult, productsResult, countResult] = await Promise.all([
+  const [settings, categories, products, totalProducts] = await Promise.all([
     getAllSettings(),
-    supabase
-      .from("Category")
-      .select("*, products:Product(count)")
-      .order("sortOrder", { ascending: true }),
-    supabase
-      .from("Product")
-      .select("*, category:Category(name, slug)")
-      .eq("isActive", true)
-      .order("sortOrder", { ascending: true })
-      .order("createdAt", { ascending: false })
-      .limit(INITIAL_PRODUCT_LIMIT),
-    supabase
-      .from("Product")
-      .select("id", { count: "exact", head: true })
-      .eq("isActive", true),
+    prisma.category.findMany({
+      include: { _count: { select: { products: true } } },
+      orderBy: { sortOrder: "asc" },
+    }),
+    prisma.product.findMany({
+      where: { isActive: true },
+      include: {
+        category: { select: { name: true, slug: true } },
+      },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      take: INITIAL_PRODUCT_LIMIT,
+    }),
+    prisma.product.count({ where: { isActive: true } }),
   ]);
 
-  const categories = categoriesResult.data?.map((c) => ({
-    id: c.id,
-    name: c.name,
-    slug: c.slug,
-    description: c.description,
-    image: c.image,
-    sortOrder: c.sortOrder,
-    createdAt: c.createdAt,
-    updatedAt: c.updatedAt,
-    _count: { products: c.products?.[0]?.count ?? 0 },
-  })) ?? [];
-
-  const products = (productsResult.data ?? []).map((p) => ({
-    ...p,
-    images: p.images ? JSON.parse(p.images) : [],
-    variants: p.variants ? JSON.parse(p.variants) : [],
-  }));
-
-  const totalProducts = countResult.count ?? 0;
+  const parsedProducts = products.map((p) => {
+    const images = p.images ? JSON.parse(p.images) : [];
+    return {
+      ...p,
+      images: Array.isArray(images) ? images.filter((i: unknown) => typeof i === "string") : [],
+      variants: p.variants ? JSON.parse(p.variants) : [],
+    };
+  });
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -94,7 +78,7 @@ export default async function HomePage() {
     name: settings.site_name || "Muara Teweh",
     description: settings.hero_subtitle || "Toko furnitur terpercaya.",
     image: settings.hero_image || undefined,
-    url: process.env.AUTH_URL || "https://tokofurnitur.com",
+    url: process.env.AUTH_URL || "https://mebelonline.id",
     telephone: settings.contact_phone || undefined,
     email: settings.contact_email || undefined,
     address: settings.contact_address
@@ -131,9 +115,9 @@ export default async function HomePage() {
         imageUrl={settings.hero_image}
       />
 
-      {/* Main Catalog — Bento Grid dengan filter kategori via API */}
+      {/* Main Catalog — Bento Grid layout dengan filter kategori */}
       <BentoCatalog
-        products={products}
+        products={parsedProducts}
         categories={categories}
         waNumber={settings.wa_number}
         waMessage={settings.wa_message}
@@ -166,8 +150,8 @@ export default async function HomePage() {
         phone={settings.contact_phone}
         email={settings.contact_email}
         address={settings.contact_address}
-        socialMedia={settings.social_media}
         operatingHours={settings.operating_hours}
+        socialMedia={settings.social_media}
         logoUrl={settings.site_logo}
       />
 

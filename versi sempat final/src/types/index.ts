@@ -5,8 +5,7 @@ export interface VariantOption {
   value: string;
   /** Hex color code for color-type variants (e.g. "#8B4513") */
   hex?: string;
-  /** Optional image URL that changes when this variant is selected */
-  image?: string;
+    image?: string;
 }
 
 export interface ProductVariant {
@@ -58,8 +57,6 @@ export interface CategoryWithProductCount {
   description: string | null;
   image: string | null;
   sortOrder: number;
-  createdAt: Date;
-  updatedAt: Date;
   _count: { products: number };
 }
 
@@ -69,6 +66,7 @@ export interface ProductWithCategory {
   slug: string;
   description: string | null;
   image: string | null;
+  /** Array of image URLs (simple gallery) */
   images: string[];
   variants: ProductVariant[];
   categoryId: string;

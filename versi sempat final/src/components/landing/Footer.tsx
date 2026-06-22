@@ -39,12 +39,19 @@ export default function Footer({
   };
 
   const scrollToSection = (sectionId: string) => {
-    const el = document.getElementById(sectionId);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth" });
-      el.setAttribute("tabindex", "-1");
-      el.focus();
+    if (sectionId === "hero") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
     }
+    requestAnimationFrame(() => {
+      const el = document.getElementById(sectionId);
+      if (el) {
+        const top = el.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo({ top, behavior: "smooth" });
+        el.setAttribute("tabindex", "-1");
+        el.focus();
+      }
+    });
   };
 
   const currentYear = new Date().getFullYear();
