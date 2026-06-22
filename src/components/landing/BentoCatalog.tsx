@@ -56,7 +56,7 @@ export default function BentoCatalog({
 
     setIsLoadingCategory(true);
     try {
-      const params = new URLSearchParams({ category: slug, all: "true" });
+      const params = new URLSearchParams({ category: slug });
       const res = await fetch(`/api/products?${params}`, {
         signal: controller.signal,
       });
