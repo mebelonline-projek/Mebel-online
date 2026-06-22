@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
@@ -24,22 +24,44 @@ export default function AdminLogin() {
     setIsLoading(true);
 
     try {
+      // Validasi client-side
+      if (!email.trim()) {
+        setError("Email tidak boleh kosong.");
+        setIsLoading(false);
+        return;
+      }
+      if (!password.trim()) {
+        setError("Password tidak boleh kosong.");
+        setIsLoading(false);
+        return;
+      }
+
       const result = await signIn("credentials", {
-        email: email.toLowerCase(),
+        email: email.toLowerCase().trim(),
         password,
         redirect: false,
       });
 
-      if (result?.error) {
+      if (!result) {
+        setError("Tidak ada respons dari server. Silakan coba lagi.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (result.error) {
+        // NextAuth v5 mengembalikan "CredentialsSignin" untuk kredensial salah
         setError("Email atau password salah.");
         setIsLoading(false);
         return;
       }
 
-      router.push("/admin/dashboard");
-      router.refresh();
-    } catch {
-      setError("Terjadi kesalahan. Silakan coba lagi.");
+      if (result.ok) {
+        router.push("/admin/dashboard");
+        router.refresh();
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("Terjadi kesalahan koneksi. Silakan coba lagi.");
       setIsLoading(false);
     }
   };
