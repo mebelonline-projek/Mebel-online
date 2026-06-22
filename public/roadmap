@@ -1,62 +1,167 @@
-🗺️ Roadmap Berikutnya — Muara Teweh
-Phase 4 sudah selesai. Proyek ini sekarang stabil secara arsitektur, aman, dan terdokumentasi. Berikut opsi-opsi untuk fase selanjutnya, diurutkan berdasarkan prioritas:
+# 📋 ROADMAP — Mebel Online (Muara Teweh)
 
-🔥 Prioritas 1: Production Readiness
-Item	Detail	Kenapa Penting
-Setup Production .env	Generate AUTH_SECRET, isi RESEND_API_KEY, SUPABASE_* nyata	Tanpa ini fitur upload & email reset password mati
-Deploy ke Vercel + Supabase	Migrasi SQLite → PostgreSQL, setup Vercel project, domain kustom	Biar bisa diakses publik
-Custom Domain + SSL	Setup domain, Vercel auto-handle SSL	Professional look
-Environment Separation	.env.production terpisah dari .env.development	Keamanan
-Estimasi: 1-2 hari
+> ⚠️ **PENTING UNTUK AI AGENT BARU:**
+> Proyek ini **SUDAH BERJALAN AKTIF** dengan database Supabase yang sudah terisi data mebel.
+> JANGAN membuat database baru, jangan run seed (`npm run db:seed`), jangan run `prisma db push` atau `prisma migrate dev`.
+> Cukup jalankan `npm run dev` setelah memastikan `.env.local` sudah benar.
 
-🧪 Prioritas 2: Testing
-Item	Detail
-Unit Tests API routes	Jest/Vitest untuk products, categories, settings API
-Component testing	Landing page components (Hero, ProductCard, dll)
-E2E flow	Playwright/Cypress — admin login → CRUD produk → settings
-Saat ini 0 test. Untuk production, minimal API routes yang critical perlu test.
+---
 
-Estimasi: 2-3 hari
+## 📊 STATUS: ✅ COMPLETE (Tahap 1-7 Selesai)
 
-🚀 Prioritas 3: Fitur Lanjutan (Pilih salah satu)
-Opsi A: Customer-Facing Features
-Fitur	Deskripsi
-Halaman detail produk /produk/[slug]	Galeri gambar, deskripsi lengkap, spesifikasi
-Pencarian produk	Search bar di landing page
-Kategori dropdown di navbar	Navigasi lebih cepat
-Testimoni pelanggan	Section baru di landing page
-Opsi B: Admin Enhancement
-Fitur	Deskripsi
-Dashboard charts	Grafik penjualan (manual input), produk terpopuler
-Bulk upload produk	Import dari CSV/Excel
-Activity log	Riwayat perubahan produk/settings
-Opsi C: E-Commerce Light
-Fitur	Deskripsi
-Order management	Admin input order dari WA → tracking status
-Customer management	Database pelanggan, riwayat chat
-Invoice generation	Generate PDF invoice otomatis
-⚡ Prioritas 4: Performa & UX
-Item	Detail
-Image optimization	Next/Image sudah dipakai, tapi bisa setup remote patterns di next.config
-Pagination produk	Sekarang limit 50 langsung, tambah load more / infinite scroll
-CDN untuk gambar	Supabase Storage sudah siap, atau pindah ke Cloudinary
-PWA / Service Worker	Biar landing page bisa di-cache & akses offline
-🔧 Prioritas 5: Infrastruktur
-Item	Detail
-CI/CD GitHub Actions	Auto lint → test → build di setiap PR
-Monitoring & Analytics	Vercel Analytics atau Plausible
-Error tracking	Sentry untuk error production
-Backup database	Scheduled backup SQLite / PostgreSQL dump
-Rekomendasi Saya
-Kalau ini proyek klien/produksi:
+Proyek toko furnitur online Muara Teweh dengan landing page + admin panel lengkap.
 
-Prioritas 1 dulu — production readiness (deploy, env, domain). Sisanya bisa menyusul.
+## 🏗 ARSITEKTUR
 
-Kalau ini proyek portfolio/showcase:
+| Layer | Teknologi |
+|-------|-----------|
+| Framework | Next.js 15 (App Router) |
+| Database | PostgreSQL (Supabase) — SUDAH AKTIF dengan data |
+| Storage | Supabase Storage (bucket: `furniture-images`) |
+| Auth | NextAuth v5 (Credentials + JWT) |
+| Email | Resend |
+| ORM | Prisma |
+| CSS | Tailwind CSS v4 |
+| UI | @base-ui/react, shadcn/ui, Framer Motion |
+| Language | TypeScript |
 
-Prioritas 3 Opsi A — customer-facing features bikin landing page lebih impressive.
+## 🔐 CREDENTIALS (.env / .env.local)
 
-Kalau ini proyek side project jangka panjang:
+```
+# Database (WAJIB - sudah aktif)
+DATABASE_URL=postgresql://postgres:Mebelonline02@aws-1-ap-southeast-1.direct.supabase.com:5432/postgres?connect_timeout=30&pool_timeout=30&pgconnector=true
+DIRECT_URL=postgresql://postgres:Mebelonline02@aws-1-ap-southeast-1.direct.supabase.com:5432/postgres?connect_timeout=30&pgconnector=true
 
-Prioritas 2 dulu — testing biar aman tambah fitur tanpa takut rusak.
+# Auth
+AUTH_SECRET=aZ3yV7Upqef/mMC/pru2r4Ir6ir3iUmOjQofEZhfc8Y=
+AUTH_URL=http://localhost:3000
 
+# Supabase Storage
+NEXT_PUBLIC_SUPABASE_URL=https://xczbowaotnvzduikgdad.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_STORAGE_BUCKET=furniture-images
+
+# Resend
+RESEND_API_KEY=re_Rcos6btn_147v6rK7rZzAggp2pKZzjgxm
+RESEND_FROM_EMAIL=noreply@tokofurnitur.com
+```
+
+## 📁 STRUKTUR FILE (31 file komponen + 12 API routes + 7 lib)
+
+### Landing Page (src/app/page.tsx + components/landing/)
+| File | Fungsi |
+|------|--------|
+| Navbar.tsx | Navbar responsif + sheet mobile |
+| Hero.tsx | Hero parallax + Framer Motion animations |
+| ProductCard.tsx | Card produk + variant picker (warna/size/material) + WA button |
+| ProductGrid.tsx | Grid + filter kategori + load more |
+| ProductVariantPicker.tsx | Picker varian interaktif |
+| AboutSection.tsx | Section tentang kami |
+| ContactSection.tsx | Section kontak + social media |
+| Footer.tsx | Footer |
+| WhatsAppButton.tsx | Floating WA button |
+
+### Admin Panel (src/app/admin/)
+| Halaman | File |
+|---------|------|
+| Login | login/page.tsx |
+| Lupa Password | forgot-password/page.tsx |
+| Reset Password | reset-password/page.tsx |
+| Dashboard | dashboard/page.tsx |
+| Produk (CRUD) | dashboard/products/page.tsx |
+| Kategori (CRUD) | dashboard/categories/page.tsx |
+| Settings | dashboard/settings/page.tsx |
+| Profile | dashboard/profile/page.tsx |
+| Sidebar | components/admin/Sidebar.tsx |
+| Header | components/admin/AdminHeader.tsx |
+| Image Uploader | components/admin/ImageUploader.tsx |
+
+### API Routes (src/app/api/)
+| Endpoint | Methods |
+|----------|---------|
+| auth/[...nextauth] | GET, POST (NextAuth handler) |
+| auth/change-password | POST |
+| auth/forgot-password | POST (rate limited) |
+| auth/reset-password | POST (rate limited) |
+| products | GET (public), POST (admin) |
+| products/[id] | GET, PUT, DELETE (admin) |
+| products/by-category | GET (admin) |
+| products/renumber | POST (admin) |
+| categories | GET, POST, PUT, DELETE (admin) |
+| categories/renumber | POST (admin) |
+| settings | GET, PUT (admin) |
+| upload | POST (admin, ke Supabase Storage) |
+
+### Library Files (src/lib/)
+| File | Fungsi |
+|------|--------|
+| auth.ts | NextAuth config + providers (Credentials) |
+| auth.config.ts | Auth callbacks, JWT, session |
+| api-auth.ts | requireAdmin() helper |
+| rate-limit.ts | DB-based rate limiter (Prisma) |
+| email.ts | Kirim email via Resend |
+| upload.ts | Upload/delete Supabase Storage |
+| site-config.ts | Baca/tulis SiteConfig dari DB |
+| prisma.ts | Prisma client singleton |
+| wa.ts | WhatsApp link builder |
+| utils.ts | Utility functions |
+
+## 🚀 CARA MENJALANKAN
+
+```bash
+# 1. Cek .env.local sudah benar (lihat CREDENTIALS di atas)
+# 2. Install dependencies
+npm install
+
+# 3. Generate Prisma client
+npx prisma generate
+
+# 4. Jalankan dev server
+npm run dev
+
+# 5. Buka http://localhost:3000
+```
+
+## 🔐 AKUN ADMIN DEFAULT
+
+- **Email:** admin@tokofurnitur.com
+- **Password:** admin123
+- **Link:** http://localhost:3000/admin/login
+
+## ❌ LARANGAN UNTUK AI AGENT BARU
+
+1. **JANGAN** buat database Supabase baru
+2. **JANGAN** jalankan `prisma db push` atau `prisma migrate dev`
+3. **JANGAN** jalankan seed data (`npm run db:seed`)
+4. **JANGAN** ubah `schema.prisma` — skema sudah final dengan 6 model (Admin, PasswordResetToken, Category, Product, SiteConfig, RateLimit)
+5. **JANGAN** ubah struktur routing atau komponen yang sudah jadi
+6. **JANGAN** upgrade Next.js ke v16 — gunakan v15 yang stabil
+
+## ✅ YANG BOLEH DILAKUKAN
+
+1. Setup `.env.local` dengan kredensial yang benar
+2. `npm install` jika ada dependency baru
+3. `npx prisma generate` untuk sync Prisma client
+4. `npm run dev` untuk menjalankan
+5. Deploy ke Vercel (environment variables sudah ada di Vercel)
+
+## ⚠️ PROBLEM YANG PERNAH TERJADI (Catalan untuk AI Agent)
+
+1. **Next.js v16** — menyebabkan error build. Harus diturunkan ke **v15.5.19**
+2. **ContactSection.tsx** — props-nya menggunakan `settings` object yang tidak cocok dengan pemanggilan di `page.tsx`. Solusi: props individual (phone, email, address, waNumber, waMessage, socialMedia)
+3. **SocialIcon.tsx** — file dalam satu baris dengan `\n` literal. Solusi: tulis ulang dengan baris nyata
+4. **Database connection** — port 6543 dan 5432 diblokir provider internet. Solusi: gunakan Direct Proxy IPv4 (`aws-1-ap-southeast-1.direct.supabase.com:5432`) + timeout 30s
+5. **Reset password** — error "domain not verified" dari Resend. Solusi: verifikasi domain di dashboard Resend, atau ubah RESEND_FROM_EMAIL ke alamat yang sudah terverifikasi
+
+## 📋 RIWAYAT PENGEMBANGAN
+
+Proyek telah melewati 7 tahap pengembangan:
+- **Tahap 1-3:** Setup Next.js, Prisma, landing page components
+- **Tahap 4:** Admin panel (login, dashboard, CRUD produk/kategori/settings)
+- **Tahap 5:** Auth layer (forgot/reset password, rate limiting, email via Resend)
+- **Tahap 6:** Upload system (Supabase Storage), SEO, error boundaries
+- **Tahap 7:** Finalisasi, environment setup, dokumentasi
+
+## 📧 KONTAK
+
+GitHub: https://github.com/mebelonline-projek/Mebel-online

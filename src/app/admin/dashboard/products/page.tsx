@@ -668,7 +668,7 @@ export default function ProductsPage() {
 
               {form.variants.length === 0 && (
                 <p className="text-xs text-gray-400 italic">
-                  Belum ada varian. Klik "Tambah Varian" untuk menambahkan pilihan warna, ukuran, atau bahan.
+                  Belum ada varian. Klik &ldquo;Tambah Varian&rdquo; untuk menambahkan pilihan warna, ukuran, atau bahan.
                 </p>
               )}
 
