@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabase";
 import type { SiteSettings } from "@/types";
 
 const DEFAULT_SETTINGS: SiteSettings = {
@@ -30,7 +30,7 @@ const SETTING_KEYS = Array.from(
 );
 
 export async function getAllSettings(): Promise<SiteSettings> {
-  const { data: rows, error } = await supabase
+  const { data: rows, error } = await getSupabase()
     .from("SiteConfig")
     .select("*")
     .in("key", SETTING_KEYS);
@@ -63,7 +63,7 @@ export async function getAllSettings(): Promise<SiteSettings> {
 }
 
 export async function getSetting(key: string): Promise<string | null> {
-  const { data: row, error } = await supabase
+  const { data: row, error } = await getSupabase()
     .from("SiteConfig")
     .select("*")
     .eq("key", key)
@@ -77,7 +77,7 @@ export async function updateSetting(
   key: string,
   value: string
 ): Promise<void> {
-  const { error } = await supabase.from("SiteConfig").upsert(
+  const { error } = await getSupabase().from("SiteConfig").upsert(
     { key, value },
     { onConflict: "key" }
   );
@@ -98,7 +98,7 @@ export async function updateSettings(
     return { key, value: stringValue };
   });
 
-  const { error } = await supabase.from("SiteConfig").upsert(upserts, {
+  const { error } = await getSupabase().from("SiteConfig").upsert(upserts, {
     onConflict: "key",
   });
 

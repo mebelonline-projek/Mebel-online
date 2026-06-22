@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { hashPassword } from "@/lib/auth";
 import { authRateLimiter } from "@/lib/rate-limit";
 
@@ -36,6 +36,8 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const supabase = getSupabase();
 
     // Cari token yang valid
     const { data: resetToken, error: findError } = await supabase

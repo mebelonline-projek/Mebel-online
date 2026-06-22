@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/api-auth";
 
@@ -13,7 +13,7 @@ const categorySchema = z.object({
 // GET /api/categories
 export async function GET() {
   try {
-    const { data: categories, error } = await supabase
+    const { data: categories, error } = await getSupabase()
       .from("Category")
       .select("*, products:Product(count)")
       .order("sortOrder", { ascending: true })
@@ -53,6 +53,7 @@ export async function GET() {
 // POST /api/categories
 export async function POST(request: Request) {
   try {
+    const supabase = getSupabase();
     // Proteksi: hanya admin
     const { error } = await requireAdmin();
     if (error) return error;
@@ -131,6 +132,7 @@ export async function POST(request: Request) {
 // PUT /api/categories
 export async function PUT(request: Request) {
   try {
+    const supabase = getSupabase();
     // Proteksi: hanya admin
     const { error } = await requireAdmin();
     if (error) return error;
@@ -240,6 +242,7 @@ export async function PUT(request: Request) {
 // DELETE /api/categories
 export async function DELETE(request: Request) {
   try {
+    const supabase = getSupabase();
     // Proteksi: hanya admin
     const { error } = await requireAdmin();
     if (error) return error;

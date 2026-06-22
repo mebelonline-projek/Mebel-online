@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
 
 // POST /api/categories/renumber — Beri nomor urut 1,2,3... ke semua kategori
 export async function POST() {
   try {
+    const supabase = getSupabase();
     const { error } = await requireAdmin();
     if (error) return error;
 

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
 
 // GET /api/products — Daftar produk (public & admin)
 export async function GET(request: Request) {
   try {
+    const supabase = getSupabase();
     const { searchParams } = new URL(request.url);
     const categorySlug = searchParams.get("category");
     const page = parseInt(searchParams.get("page") ?? "1");
@@ -83,6 +84,7 @@ export async function GET(request: Request) {
 // POST /api/products — Tambah produk (admin)
 export async function POST(request: Request) {
   try {
+    const supabase = getSupabase();
     // Proteksi: hanya admin
     const { error } = await requireAdmin();
     if (error) return error;

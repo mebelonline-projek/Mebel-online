@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabase";
 import { authConfig } from "./auth.config";
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
@@ -22,7 +22,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
         const password = credentials.password as string;
 
         try {
-          const { data: admin, error } = await supabase
+          const { data: admin, error } = await getSupabase()
             .from("Admin")
             .select("*")
             .eq("email", email.toLowerCase())

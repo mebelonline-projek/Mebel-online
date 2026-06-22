@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { getAllSettings } from "@/lib/site-config";
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
@@ -48,6 +48,7 @@ export async function generateMetadata(): Promise<Metadata> {
 const INITIAL_PRODUCT_LIMIT = 20;
 
 export default async function HomePage() {
+  const supabase = getSupabase();
   const [settings, categoriesResult, productsResult, countResult] = await Promise.all([
     getAllSettings(),
     supabase

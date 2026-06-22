@@ -5,7 +5,7 @@
  * Untuk production multi-instance skala besar, ganti dengan Redis/Vercel KV.
  */
 
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabase";
 
 interface RateLimiterConfig {
   windowMs: number;
@@ -24,6 +24,7 @@ export function createRateLimiter({ windowMs, maxRequests }: RateLimiterConfig) 
   return async (identifier: string, action: string): Promise<{ allowed: boolean; remaining: number }> => {
     try {
       const now = new Date();
+      const supabase = getSupabase();
 
       // Cari record yang ada
       const { data: existing } = await supabase
@@ -81,7 +82,7 @@ export function createRateLimiter({ windowMs, maxRequests }: RateLimiterConfig) 
 if (typeof setInterval !== "undefined") {
   setInterval(async () => {
     try {
-      await supabase
+      await getSupabase()
         .from("RateLimit")
         .delete()
         .lte("expiresAt", new Date().toISOString());

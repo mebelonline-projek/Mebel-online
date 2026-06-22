@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { forgotPasswordRateLimiter } from "@/lib/rate-limit";
@@ -32,6 +32,8 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const supabase = getSupabase();
 
     // Cek apakah email terdaftar sebagai admin
     const { data: admin } = await supabase

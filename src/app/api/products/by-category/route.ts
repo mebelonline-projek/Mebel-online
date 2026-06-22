@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
 
 // GET /api/products/by-category?categoryId=xxx — Ringan: hanya id, name, sortOrder
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const { data: products, error: findError } = await supabase
+    const { data: products, error: findError } = await getSupabase()
       .from("Product")
       .select("id, name, sortOrder")
       .eq("categoryId", categoryId)

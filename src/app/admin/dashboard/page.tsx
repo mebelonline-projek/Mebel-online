@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import AdminHeader from "@/components/admin/AdminHeader";
 import { Package, Tags, CheckCircle, XCircle, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
@@ -6,6 +6,7 @@ import Link from "next/link";
 export const revalidate = 60;
 
 export default async function DashboardOverview() {
+  const supabase = getSupabase();
   const [totalProductsResult, totalCategoriesResult, activeResult, inactiveResult] =
     await Promise.all([
       supabase.from("Product").select("id", { count: "exact", head: true }),

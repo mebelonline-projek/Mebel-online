@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
 import { deleteFromSupabase } from "@/lib/upload";
 
@@ -10,7 +10,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const { data: product, error } = await supabase
+    const { data: product, error } = await getSupabase()
       .from("Product")
       .select("*, category:Category(id, name, slug)")
       .eq("id", id)
@@ -46,6 +46,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const supabase = getSupabase();
     // Proteksi: hanya admin
     const { error } = await requireAdmin();
     if (error) return error;
@@ -189,6 +190,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const supabase = getSupabase();
     // Proteksi: hanya admin
     const { error } = await requireAdmin();
     if (error) return error;

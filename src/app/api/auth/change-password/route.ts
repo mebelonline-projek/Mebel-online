@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 
@@ -33,6 +33,8 @@ export async function POST(request: Request) {
         { status: 401 }
       );
     }
+
+    const supabase = getSupabase();
 
     // Ambil data admin dari database
     const { data: admin, error: findError } = await supabase
