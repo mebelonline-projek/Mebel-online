@@ -28,10 +28,16 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     // Proteksi: hanya admin
-    const { error } = await requireAdmin();
-    if (error) return error;
+    const { error: authError, session } = await requireAdmin();
+    if (authError) {
+      console.error("Auth failed in PUT /api/settings");
+      return authError;
+    }
+
+    console.log("Settings PUT: authenticated as", session?.user?.email);
 
     const body: Partial<SiteSettings> = await request.json();
+    console.log("Settings PUT: received body keys:", Object.keys(body));
 
     // Validasi tipe social_media jika ada
     if (body.social_media !== undefined) {
@@ -43,20 +49,34 @@ export async function PUT(request: Request) {
       }
     }
 
+    // Validasi tipe operating_hours jika ada
+    if (body.operating_hours !== undefined) {
+      if (!Array.isArray(body.operating_hours)) {
+        return NextResponse.json(
+          { success: false, error: "Format operating_hours tidak valid." },
+          { status: 400 }
+        );
+      }
+    }
+
     // Ambil data lama dulu untuk cek perubahan gambar
     const oldSettings = await getAllSettings();
 
+    // Simpan dulu — jika gagal, throw biar masuk catch
     await updateSettings(body);
 
-    // Ambil data terbaru
+    // Ambil data terbaru setelah simpan
     const settings = await getAllSettings();
 
     // Hapus foto lama dari Supabase kalau ada gambar yang berubah
+    // Jalankan async tanpa blocking response (fire-and-forget)
     for (const field of IMAGE_FIELDS) {
       const oldVal = oldSettings[field as keyof SiteSettings] as string;
       const newVal = body[field as keyof SiteSettings];
       if (newVal !== undefined && newVal !== oldVal && oldVal) {
-        await deleteFromSupabase(oldVal);
+        deleteFromSupabase(oldVal).catch((err) =>
+          console.error(`Failed to delete old ${field} image:`, err)
+        );
       }
     }
 
@@ -67,8 +87,12 @@ export async function PUT(request: Request) {
     });
   } catch (error) {
     console.error("Update settings error:", error);
+    const errorMessage =
+      error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : "Gagal menyimpan pengaturan.";
     return NextResponse.json(
-      { success: false, error: "Gagal menyimpan pengaturan." },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
