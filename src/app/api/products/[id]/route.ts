@@ -2,12 +2,22 @@ import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
 import { deleteFromSupabase } from "@/lib/upload";
+import { publicApiRateLimiter } from "@/lib/rate-limit";
 
 // GET /api/products/[id]
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Rate limit untuk endpoint publik
+  const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "anonymous";
+  const { allowed } = await publicApiRateLimiter(ip, "public-product-detail");
+  if (!allowed) {
+    return NextResponse.json(
+      { success: false, error: "Terlalu banyak permintaan. Silakan coba lagi nanti." },
+      { status: 429 }
+    );
+  }
   try {
     const { id } = await params;
     const { data: product, error } = await getSupabase()
@@ -19,6 +29,14 @@ export async function GET(
     if (error || !product) {
       return NextResponse.json(
         { success: false, error: "Produk tidak ditemukan." },
+        { status: 404 }
+      );
+    }
+
+    // Proteksi: produk nonaktif tidak bisa diakses publik
+    if (!product.isActive) {
+      return NextResponse.json(
+        { success: false, error: "Produk tidak ditemukan atau tidak tersedia." },
         { status: 404 }
       );
     }
@@ -83,20 +101,41 @@ export async function PUT(
 
       if (newSort < oldSort) {
         // Produk naik ke posisi lebih awal → produk di antaranya digeser mundur
-        await supabase
+        // Produk naik ke posisi lebih awal → geser yang di antaranya ke belakang
+        const { data: toShiftUp } = await supabase
           .from("Product")
-          .update({ sortOrder: existing.sortOrder + 1 })
+          .select("id, sortOrder")
           .gte("sortOrder", newSort)
           .lt("sortOrder", oldSort)
-          .neq("id", id);
+          .neq("id", id)
+          .order("sortOrder", { ascending: false });
+
+        if (toShiftUp) {
+          for (const item of toShiftUp) {
+            await supabase
+              .from("Product")
+              .update({ sortOrder: item.sortOrder + 1 })
+              .eq("id", item.id);
+          }
+        }
       } else {
-        // Produk turun ke posisi lebih akhir → produk di antaranya digeser maju
-        await supabase
+        // Produk turun ke posisi lebih akhir → geser yang di antaranya ke depan
+        const { data: toShiftDown } = await supabase
           .from("Product")
-          .update({ sortOrder: existing.sortOrder - 1 })
+          .select("id, sortOrder")
           .gt("sortOrder", oldSort)
           .lte("sortOrder", newSort)
-          .neq("id", id);
+          .neq("id", id)
+          .order("sortOrder", { ascending: true });
+
+        if (toShiftDown) {
+          for (const item of toShiftDown) {
+            await supabase
+              .from("Product")
+              .update({ sortOrder: item.sortOrder - 1 })
+              .eq("id", item.id);
+          }
+        }
       }
 
       // Update produk
@@ -111,6 +150,7 @@ export async function PUT(
           categoryId,
           isActive: isActive ?? existing.isActive,
           sortOrder: newSort,
+          updatedAt: new Date().toISOString(),
         })
         .eq("id", id);
 
@@ -132,6 +172,14 @@ export async function PUT(
       // Hapus foto lama dari Supabase kalau image berubah
       if (image !== undefined && image !== existing.image && existing.image) {
         await deleteFromSupabase(existing.image);
+      }
+
+      // Hapus foto galeri yang dihapus dari array images
+      if (images !== undefined) {
+        const oldImages = existing.images ? (JSON.parse(existing.images) as string[]) : [];
+        const newImages = images as string[];
+        const removed = oldImages.filter((url) => !newImages.includes(url));
+        await Promise.all(removed.map((url) => deleteFromSupabase(url)));
       }
 
       return NextResponse.json({
@@ -156,6 +204,7 @@ export async function PUT(
         categoryId,
         isActive: isActive ?? existing.isActive,
         sortOrder: sortOrder ?? existing.sortOrder,
+        updatedAt: new Date().toISOString(),
       })
       .eq("id", id)
       .select("*, category:Category(name, slug)")
@@ -172,6 +221,14 @@ export async function PUT(
     // Hapus foto lama dari Supabase kalau image berubah
     if (image !== undefined && image !== existing.image && existing.image) {
       await deleteFromSupabase(existing.image);
+    }
+
+    // Hapus foto galeri yang dihapus dari array images
+    if (images !== undefined) {
+      const oldImages = existing.images ? (JSON.parse(existing.images) as string[]) : [];
+      const newImages = images as string[];
+      const removed = oldImages.filter((url) => !newImages.includes(url));
+      await Promise.all(removed.map((url) => deleteFromSupabase(url)));
     }
 
     return NextResponse.json({
@@ -221,9 +278,18 @@ export async function DELETE(
     if (existing.image) {
       await deleteFromSupabase(existing.image);
     }
+    // Hapus foto galeri — handle null / string kosong / parse error
     if (existing.images) {
-      const imageList = JSON.parse(existing.images) as string[];
-      await Promise.all(imageList.map((img) => deleteFromSupabase(img)));
+      let imageList: string[] = [];
+      try {
+        const parsed = JSON.parse(existing.images);
+        imageList = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        imageList = [];
+      }
+      if (imageList.length > 0) {
+        await Promise.all(imageList.map((img) => deleteFromSupabase(img)));
+      }
     }
 
     const { error: deleteError } = await supabase

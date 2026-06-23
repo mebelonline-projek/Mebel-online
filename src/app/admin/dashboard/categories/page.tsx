@@ -34,6 +34,7 @@ import {
   Tags,
   Package,
   ListOrdered,
+  FolderOpen,
 } from "lucide-react";
 
 interface Category {
@@ -57,6 +58,8 @@ export default function CategoriesPage() {
   const [categoryProducts, setCategoryProducts] = useState<{ id: string; name: string; sortOrder: number }[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isRenumbering, setIsRenumbering] = useState(false);
+  const [moveToCategoryId, setMoveToCategoryId] = useState("");
+  const [isMovingAndDeleting, setIsMovingAndDeleting] = useState(false);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -181,20 +184,29 @@ export default function CategoriesPage() {
     if (!deleteTarget) return;
 
     try {
-      const res = await fetch(`/api/categories?id=${deleteTarget.id}`, {
+      let url = `/api/categories?id=${deleteTarget.id}`;
+      if (moveToCategoryId) {
+        url += `&moveToCategoryId=${moveToCategoryId}`;
+        setIsMovingAndDeleting(true);
+      }
+
+      const res = await fetch(url, {
         method: "DELETE",
       });
       const data = await res.json();
 
       if (data.success) {
-        toast.success("Kategori berhasil dihapus");
+        toast.success("Kategori berhasil dihapus" + (moveToCategoryId ? " & produk dipindahkan" : ""));
         setDeleteTarget(null);
+        setMoveToCategoryId("");
         fetchCategories();
       } else {
         toast.error(data.error || "Gagal menghapus kategori");
       }
     } catch {
       toast.error("Terjadi kesalahan");
+    } finally {
+      setIsMovingAndDeleting(false);
     }
   };
 
@@ -441,20 +453,67 @@ export default function CategoriesPage() {
       {/* Delete Confirmation */}
       <AlertDialog
         open={!!deleteTarget}
-        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setMoveToCategoryId("");
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Kategori</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget && deleteTarget._count.products > 0
-                ? `Kategori "${deleteTarget.name}" memiliki ${deleteTarget._count.products} produk. Hapus atau pindahkan produk terlebih dahulu.`
+                ? `Kategori "${deleteTarget.name}" memiliki ${deleteTarget._count.products} produk. Pindahkan produk ke kategori lain sebelum menghapus.`
                 : `Apakah Anda yakin ingin menghapus kategori "${deleteTarget?.name}"?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {deleteTarget && deleteTarget._count.products > 0 && (
+            <div className="px-6 py-2">
+              <Label htmlFor="move-category-id" className="text-sm font-medium text-gray-700 mb-2 block">
+                Pindahkan produk ke kategori:
+              </Label>
+              <select
+                id="move-category-id"
+                value={moveToCategoryId}
+                onChange={(e) => setMoveToCategoryId(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-maroon/20 focus:border-brand-maroon"
+              >
+                <option value="">-- Pilih kategori --</option>
+                {categories
+                  .filter((c) => c.id !== deleteTarget?.id)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c._count.products} produk)
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-xl">Batal</AlertDialogCancel>
-            {deleteTarget && deleteTarget._count.products === 0 && (
+            {deleteTarget && deleteTarget._count.products > 0 ? (
+              <AlertDialogAction
+                onClick={handleDelete}
+                disabled={!moveToCategoryId || isMovingAndDeleting}
+                className="bg-red-600 hover:bg-red-700 text-white rounded-xl disabled:opacity-50"
+              >
+                {isMovingAndDeleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Memindahkan & Menghapus...
+                  </>
+                ) : (
+                  <>
+                    <FolderOpen className="h-4 w-4 mr-1.5" />
+                    Pindahkan & Hapus
+                  </>
+                )}
+              </AlertDialogAction>
+            ) : (
               <AlertDialogAction
                 onClick={handleDelete}
                 className="bg-red-600 hover:bg-red-700 text-white rounded-xl"

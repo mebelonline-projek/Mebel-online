@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, CheckCircle2 } from "lucide-react";
 import type { SiteSettings, SocialMediaItem, OperatingHourEntry } from "@/types";
 
 const defaultSettings: SiteSettings = {
@@ -38,10 +38,23 @@ const defaultSettings: SiteSettings = {
   footer_description: "Toko furnitur terpercaya untuk rumah impian Anda.",
 };
 
+const SAVE_SECTIONS = [
+  "Menyimpan brand & identitas...",
+  "Menyimpan hero section...",
+  "Menyimpan tentang kami...",
+  "Menyimpan kontak & WhatsApp...",
+  "Menyimpan jam operasional...",
+  "Menyimpan media sosial...",
+  "Menyimpan footer...",
+  "Menyelesaikan...",
+];
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SiteSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveProgress, setSaveProgress] = useState(0);
+  const [saveMessage, setSaveMessage] = useState("");
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -63,22 +76,55 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     setIsSaving(true);
+    setSaveProgress(0);
+
+    // Mulai progress animation
+    const progressTimer = setInterval(() => {
+      setSaveProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressTimer);
+          return 90;
+        }
+        return prev + 5;
+      });
+    }, 400);
+
     try {
+      setSaveMessage(SAVE_SECTIONS[0]);
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
       });
+
+      // Simulasi progress lebih akurat setelah response
+      const steps = SAVE_SECTIONS.length;
+      for (let i = 1; i < steps; i++) {
+        setSaveMessage(SAVE_SECTIONS[i]);
+        setSaveProgress(Math.min(Math.round((i / steps) * 95), 95));
+        await new Promise((r) => setTimeout(r, 100));
+      }
+
+      setSaveProgress(95);
       const data = await res.json();
+      
       if (data.success) {
+        setSaveProgress(100);
+        setSaveMessage("✓ Semua pengaturan berhasil disimpan!");
+        await new Promise((r) => setTimeout(r, 800));
         toast.success("Pengaturan berhasil disimpan");
       } else {
         toast.error(data.error || "Gagal menyimpan");
+        setSaveProgress(0);
       }
     } catch {
       toast.error("Gagal menyimpan pengaturan");
+      setSaveProgress(0);
     } finally {
+      clearInterval(progressTimer);
       setIsSaving(false);
+      setSaveProgress(0);
+      setSaveMessage("");
     }
   };
 
@@ -191,6 +237,7 @@ export default function SettingsPage() {
               <ImageUploader
                 currentImage={settings.hero_image}
                 onImageUploaded={(url) => setSettings((p) => ({ ...p, hero_image: url }))}
+                tipeFoto="hero"
               />
             </div>
             <div className="md:col-span-2 space-y-2">
@@ -224,6 +271,7 @@ export default function SettingsPage() {
               <ImageUploader
                 currentImage={settings.about_image}
                 onImageUploaded={(url) => setSettings((p) => ({ ...p, about_image: url }))}
+                tipeFoto="tentang-kami"
               />
             </div>
             <div className="md:col-span-2 space-y-2">
@@ -461,23 +509,51 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Save Button */}
-        <div className="flex justify-end sticky bottom-0 pb-6">
-          <Button
-            onClick={handleSave}
-            disabled={isSaving}
-            size="lg"
-            className="bg-brand-maroon hover:bg-brand-maroon-dark text-white rounded-xl px-8 shadow-lg shadow-brand-maroon/20"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Menyimpan...
-              </>
-            ) : (
-              "Simpan Semua Pengaturan"
-            )}
-          </Button>
+        {/* Save Button with Progress Bar */}
+        <div className="sticky bottom-0 pb-6">
+          {isSaving && (
+            <div className="mb-4 bg-white rounded-xl border border-gray-100 p-4 shadow-lg">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  {saveProgress >= 100 ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Loader2 className="h-4 w-4 animate-spin text-brand-maroon" />
+                  )}
+                  <span className="text-sm font-medium text-gray-700">
+                    {saveMessage || "Menyimpan..."}
+                  </span>
+                </div>
+                <span className="text-xs font-mono text-gray-400">{saveProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ease-out ${
+                    saveProgress >= 100 ? "bg-green-500" : "bg-brand-maroon"
+                  }`}
+                  style={{ width: `${saveProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              size="lg"
+              className="bg-brand-maroon hover:bg-brand-maroon-dark text-white rounded-xl px-8 shadow-lg shadow-brand-maroon/20"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  {saveProgress >= 100 ? "Tersimpan!" : "Menyimpan..."}
+                </>
+              ) : (
+                "Simpan Semua Pengaturan"
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </>

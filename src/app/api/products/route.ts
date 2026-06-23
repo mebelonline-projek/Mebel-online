@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
+import { publicApiRateLimiter } from "@/lib/rate-limit";
+
+// Generate UUID tanpa dependensi crypto Node.js
+function generateUUID(): string {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 // GET /api/products — Daftar produk (public & admin)
 export async function GET(request: Request) {
@@ -11,6 +21,18 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get("page") ?? "1");
     const limit = parseInt(searchParams.get("limit") ?? "50");
     const all = searchParams.get("all") === "true"; // admin: include inactive
+
+    // Rate limit untuk endpoint publik (tanpa all=true)
+    if (!all) {
+      const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "anonymous";
+      const { allowed } = await publicApiRateLimiter(ip, "public-products");
+      if (!allowed) {
+        return NextResponse.json(
+          { success: false, error: "Terlalu banyak permintaan. Silakan coba lagi nanti." },
+          { status: 429 }
+        );
+      }
+    }
 
     // Proteksi: hanya admin bisa lihat produk non-aktif
     if (all) {
@@ -90,7 +112,7 @@ export async function POST(request: Request) {
     if (error) return error;
 
     const body = await request.json();
-    const { name, description, image, images, variants, categoryId, sortOrder } = body;
+    const { name, description, image, images, variants, categoryId, sortOrder, isActive } = body;
 
     if (!name || !categoryId) {
       return NextResponse.json(
@@ -120,6 +142,7 @@ export async function POST(request: Request) {
     const { data: product, error: createError } = await supabase
       .from("Product")
       .insert({
+        id: generateUUID(),
         name,
         slug: `${slug}-${Date.now()}`,
         description: description ?? null,
@@ -128,6 +151,9 @@ export async function POST(request: Request) {
         variants: variants ? JSON.stringify(variants) : "[]",
         categoryId,
         sortOrder: nextSortOrder,
+        isActive: isActive ?? true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
       .select("*, category:Category(name, slug)")
       .single();
@@ -135,7 +161,7 @@ export async function POST(request: Request) {
     if (createError || !product) {
       console.error("Create product error:", createError);
       return NextResponse.json(
-        { success: false, error: "Gagal menambah produk." },
+        { success: false, error: `Gagal menambah produk: ${createError?.message || "Unknown error"}` },
         { status: 500 }
       );
     }
@@ -154,7 +180,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Create product error:", error);
     return NextResponse.json(
-      { success: false, error: "Gagal menambah produk." },
+      { success: false, error: `Gagal menambah produk: ${error instanceof Error ? error.message : "Unknown error"}` },
       { status: 500 }
     );
   }

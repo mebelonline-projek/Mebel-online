@@ -13,6 +13,17 @@ interface RateLimiterConfig {
 }
 
 /**
+ * Generate UUID v4 sederhana (tanpa crypto.webcrypto dependency)
+ */
+function generateUUID(): string {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
  * Membuat rate limiter function.
  * Otomatis membersihkan entry expired setiap 5 menit.
  *
@@ -26,7 +37,7 @@ export function createRateLimiter({ windowMs, maxRequests }: RateLimiterConfig) 
       const now = new Date();
       const supabase = getSupabase();
 
-      // Cari record yang ada
+      // Cari record yang sudah ada
       const { data: existing } = await supabase
         .from("RateLimit")
         .select("*")
@@ -35,19 +46,24 @@ export function createRateLimiter({ windowMs, maxRequests }: RateLimiterConfig) 
         .single();
 
       if (!existing || new Date(existing.expiresAt) <= now) {
-        // Buat baru (atau reset)
-        const { error } = await supabase.from("RateLimit").upsert(
-          {
-            identifier,
-            action,
-            count: 1,
-            expiresAt: new Date(now.getTime() + windowMs).toISOString(),
-          },
-          { onConflict: "identifier_action" }
-        );
+        // Buat baru (atau reset) — hapus dulu record lama jika ada
+        if (existing) {
+          await supabase
+            .from("RateLimit")
+            .delete()
+            .eq("id", existing.id);
+        }
+
+        const { error } = await supabase.from("RateLimit").insert({
+          id: generateUUID(),
+          identifier,
+          action,
+          count: 1,
+          expiresAt: new Date(now.getTime() + windowMs).toISOString(),
+        });
 
         if (error) {
-          console.error("Rate limiter upsert error:", error);
+          console.error("Rate limiter insert error:", error);
           return { allowed: true, remaining: maxRequests };
         }
 
@@ -101,4 +117,10 @@ export const authRateLimiter = createRateLimiter({
 export const forgotPasswordRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 menit
   maxRequests: 3,
+});
+
+// Rate limiter untuk endpoint publik (produk, kategori, dll)
+export const publicApiRateLimiter = createRateLimiter({
+  windowMs: 1 * 60 * 1000, // 1 menit
+  maxRequests: 60, // 60 request per menit
 });

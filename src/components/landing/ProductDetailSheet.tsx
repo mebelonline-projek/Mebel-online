@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { X, ChevronLeft, ChevronRight, ShoppingBag } from "lucide-react";
+import { ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { buildWaLink } from "@/lib/wa";
@@ -27,12 +27,14 @@ export default function ProductDetailSheet({
 }: ProductDetailSheetProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageError, setImageError] = useState<Record<number, boolean>>({});
+  const [imageLoaded, setImageLoaded] = useState<Record<number, boolean>>({});
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
 
   // Reset state when product changes
   useEffect(() => {
     setCurrentImageIndex(0);
     setImageError({});
+    setImageLoaded({});
     if (product?.variants) {
       const defaults: Record<string, string> = {};
       for (const v of product.variants) {
@@ -146,81 +148,101 @@ export default function ProductDetailSheet({
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
             className="fixed right-0 top-0 bottom-0 z-[95] w-full sm:w-[440px] bg-white shadow-2xl overflow-y-auto"
           >
-            {/* Close button */}
+            {/* Close button — left side */}
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-black/10 backdrop-blur-sm text-gray-700 hover:bg-black/20 transition-colors"
-              aria-label="Tutup"
+              className="absolute top-4 left-4 z-20 flex items-center gap-1.5 pl-2 pr-4 py-2 rounded-full bg-white/95 backdrop-blur-sm text-gray-800 shadow-md hover:bg-white border border-gray-200/60 transition-all"
+              aria-label="Kembali"
             >
-              <X className="h-5 w-5" />
+              <ArrowLeft className="h-4 w-4" />
+              <span className="text-sm font-medium">Kembali</span>
             </button>
 
-            {/* Image Gallery */}
-            <div className="relative w-full aspect-square bg-gray-100">
-              {gallery.length > 0 && !imageError[currentImageIndex] ? (
-                <>
-                  <Image
-                    key={currentImageIndex}
-                    src={gallery[currentImageIndex]}
-                    alt={product.name}
-                    fill
-                    sizes="(max-width: 440px) 100vw, 440px"
-                    className="object-contain"
-                    priority
-                    onError={() =>
-                      setImageError((prev) => ({ ...prev, [currentImageIndex]: true }))
-                    }
-                  />
-
-                  {/* Nav arrows */}
-                  {gallery.length > 1 && (
-                    <>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePrevImage();
+            {/* Image Gallery — crossfade tanpa key unmount */}
+            <div className="relative w-full aspect-square bg-gray-100 select-none">
+              {gallery.length > 0 ? (
+                <div className="absolute inset-0">
+                  {gallery.map((url, i) => (
+                    <div
+                      key={i}
+                      className={`absolute inset-0 transition-opacity duration-300 ${
+                        i === currentImageIndex && !imageError[i]
+                          ? "opacity-100 pointer-events-auto"
+                          : "opacity-0 pointer-events-none"
+                      }`}
+                    >
+                      <Image
+                        src={url}
+                        alt={product.name}
+                        fill
+                        sizes="(max-width: 440px) 100vw, 440px"
+                        className={`object-contain transition-opacity duration-300 ${
+                          imageLoaded[i] ? "opacity-100" : "opacity-0"
+                        }`}
+                        priority={i === 0}
+                        onLoad={() =>
+                          setImageLoaded((prev) => ({ ...prev, [i]: true }))
+                        }
+                        onError={() => {
+                          setImageError((prev) => ({ ...prev, [i]: true }));
+                          // fallback: jika error, tampilkan gambar placeholder
+                          if (i === currentImageIndex) {
+                            setCurrentImageIndex(i === 0 ? (gallery.length > 1 ? 1 : 0) : 0);
+                          }
                         }}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white shadow-sm transition-all"
-                        aria-label="Sebelumnya"
-                      >
-                        <ChevronLeft className="h-5 w-5" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleNextImage();
-                        }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white shadow-sm transition-all"
-                        aria-label="Berikutnya"
-                      >
-                        <ChevronRight className="h-5 w-5" />
-                      </button>
-                    </>
-                  )}
-
-                  {/* Dots */}
-                  {gallery.length > 1 && (
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-                      {gallery.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setCurrentImageIndex(i)}
-                          className={`block rounded-full transition-all duration-300 ${
-                            i === currentImageIndex
-                              ? "bg-brand-maroon w-5 h-2"
-                              : "bg-white/60 hover:bg-white/90 h-2 w-2"
-                          }`}
-                        />
-                      ))}
+                      />
                     </div>
-                  )}
-                </>
+                  ))}
+                </div>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <ShoppingBag className="h-16 w-16 text-gray-300" />
+                </div>
+              )}
+
+              {/* Nav arrows */}
+              {gallery.length > 1 && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePrevImage();
+                    }}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white shadow-sm transition-all z-10"
+                    aria-label="Sebelumnya"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleNextImage();
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white shadow-sm transition-all z-10"
+                    aria-label="Berikutnya"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </>
+              )}
+
+              {/* Dots */}
+              {gallery.length > 1 && (
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
+                  {gallery.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentImageIndex(i)}
+                      className={`block rounded-full transition-all duration-300 ${
+                        i === currentImageIndex
+                          ? "bg-brand-maroon w-5 h-2"
+                          : "bg-white/60 hover:bg-white/90 h-2 w-2"
+                      }`}
+                    />
+                  ))}
                 </div>
               )}
             </div>

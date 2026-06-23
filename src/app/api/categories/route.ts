@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/api-auth";
+import { publicApiRateLimiter } from "@/lib/rate-limit";
+
+function generateUUID(): string {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 const categorySchema = z.object({
   name: z.string().min(1, "Nama kategori wajib diisi"),
@@ -11,7 +20,16 @@ const categorySchema = z.object({
 });
 
 // GET /api/categories
-export async function GET() {
+export async function GET(request: Request) {
+  // Rate limit untuk endpoint publik
+  const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "anonymous";
+  const { allowed } = await publicApiRateLimiter(ip, "public-categories");
+  if (!allowed) {
+    return NextResponse.json(
+      { success: false, error: "Terlalu banyak permintaan. Silakan coba lagi nanti." },
+      { status: 429 }
+    );
+  }
   try {
     const { data: categories, error } = await getSupabase()
       .from("Category")
@@ -96,6 +114,7 @@ export async function POST(request: Request) {
     const { data: category, error: createError } = await supabase
       .from("Category")
       .insert({
+        id: generateUUID(),
         name: parsed.name,
         slug,
         description: parsed.description ?? null,
@@ -166,22 +185,43 @@ export async function PUT(request: Request) {
       const oldSort = existing.sortOrder;
       const newSort = sortOrder;
 
+      // Renumber: ambil semua kategori yang terdampak, lalu update satu per satu
       if (newSort < oldSort) {
         // Kategori naik ke posisi lebih awal → geser yang di antaranya ke belakang
-        await supabase
+        const { data: toShift } = await supabase
           .from("Category")
-          .update({ sortOrder: existing.sortOrder + 1 }) // dummy increment
+          .select("id, sortOrder")
           .gte("sortOrder", newSort)
           .lt("sortOrder", oldSort)
-          .neq("id", id);
+          .neq("id", id)
+          .order("sortOrder", { ascending: false });
+
+        if (toShift) {
+          for (const item of toShift) {
+            await supabase
+              .from("Category")
+              .update({ sortOrder: item.sortOrder + 1 })
+              .eq("id", item.id);
+          }
+        }
       } else {
         // Kategori turun ke posisi lebih akhir → geser yang di antaranya ke depan
-        await supabase
+        const { data: toShift } = await supabase
           .from("Category")
-          .update({ sortOrder: existing.sortOrder - 1 }) // dummy decrement
+          .select("id, sortOrder")
           .gt("sortOrder", oldSort)
           .lte("sortOrder", newSort)
-          .neq("id", id);
+          .neq("id", id)
+          .order("sortOrder", { ascending: true });
+
+        if (toShift) {
+          for (const item of toShift) {
+            await supabase
+              .from("Category")
+              .update({ sortOrder: item.sortOrder - 1 })
+              .eq("id", item.id);
+          }
+        }
       }
 
       // Update kategori
@@ -249,6 +289,7 @@ export async function DELETE(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
+    const moveToCategoryId = searchParams.get("moveToCategoryId");
 
     if (!id) {
       return NextResponse.json(
@@ -278,13 +319,44 @@ export async function DELETE(request: Request) {
       .eq("categoryId", id);
 
     if (!countError && productCount && productCount > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Kategori "${existing.name}" memiliki ${productCount} produk. Hapus atau pindahkan produk terlebih dahulu.`,
-        },
-        { status: 409 }
-      );
+      // Jika ada parameter moveToCategoryId, pindahkan produk dulu
+      if (moveToCategoryId) {
+        // Validasi kategori tujuan ada
+        const { data: targetCategory } = await supabase
+          .from("Category")
+          .select("id")
+          .eq("id", moveToCategoryId)
+          .single();
+
+        if (!targetCategory) {
+          return NextResponse.json(
+            { success: false, error: "Kategori tujuan tidak ditemukan." },
+            { status: 400 }
+          );
+        }
+
+        // Pindahkan semua produk ke kategori tujuan
+        const { error: moveError } = await supabase
+          .from("Product")
+          .update({ categoryId: moveToCategoryId })
+          .eq("categoryId", id);
+
+        if (moveError) {
+          console.error("Move products error:", moveError);
+          return NextResponse.json(
+            { success: false, error: "Gagal memindahkan produk." },
+            { status: 500 }
+          );
+        }
+      } else {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Kategori "${existing.name}" memiliki ${productCount} produk. Hapus atau pindahkan produk terlebih dahulu.`,
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const { error: deleteError } = await supabase

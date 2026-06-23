@@ -115,7 +115,8 @@ export default function ProductVariantEditor({
 
       const updated = variants.map((g) => {
         if (g.type !== type) return g;
-        return { ...g, options: [...g.options, opt] };
+        const currentOptions = Array.isArray(g.options) ? g.options : [];
+        return { ...g, options: [...currentOptions, opt] };
       });
       // Jika belum ada grup (seharusnya sudah, karena toggle ON), buat baru
       if (!updated.some((g) => g.type === type)) {
@@ -134,12 +135,16 @@ export default function ProductVariantEditor({
       const updated = variants
         .map((g) => {
           if (g.type !== type) return g;
+          const currentOptions = Array.isArray(g.options) ? g.options : [];
           return {
             ...g,
-            options: g.options.filter((_, i) => i !== optIndex),
+            options: currentOptions.filter((_, i) => i !== optIndex),
           };
         })
-        .filter((g) => g.options.length > 0); // hapus grup jika opsi habis
+        .filter((g) => {
+          const opts = Array.isArray(g.options) ? g.options : [];
+          return opts.length > 0;
+        }); // hapus grup jika opsi habis
       onChange(updated);
     },
     [variants, onChange]
@@ -179,9 +184,10 @@ export default function ProductVariantEditor({
     onChange(
       variants.map((g) => {
         if (g.type !== type) return g;
+        const currentOptions = Array.isArray(g.options) ? g.options : [];
         return {
           ...g,
-          options: g.options.map((opt, oi) => {
+          options: currentOptions.map((opt, oi) => {
             if (oi !== idx) return opt;
             const updated: VariantOption = { label: trimmed, value: newValue };
             // Update hex jika tipe color dan valid
@@ -417,7 +423,7 @@ export default function ProductVariantEditor({
                                 e.stopPropagation();
                                 handleRemoveOption(section.type, oi);
                               }}
-                              className="text-gray-300 hover:text-red-400 ml-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="text-gray-300 hover:text-red-500 ml-0.5 transition-colors"
                               aria-label={`Hapus ${opt.label}`}
                             >
                               <X className="h-3 w-3" />

@@ -95,13 +95,13 @@ export async function updateSetting(
   value: string
 ): Promise<void> {
   const { error } = await getSupabase().from("SiteConfig").upsert(
-    { key, value },
+    { id: crypto.randomUUID(), key, value },
     { onConflict: "key" }
   );
 
   if (error) {
     console.error("Error updating setting:", error);
-    throw error;
+    throw new Error(error.message || "Gagal menyimpan pengaturan");
   }
 }
 
@@ -112,7 +112,7 @@ export async function updateSettings(
   const upserts = entries.map(([key, value]) => {
     const stringValue =
       typeof value === "object" ? JSON.stringify(value) : String(value);
-    return { key, value: stringValue };
+    return { id: crypto.randomUUID(), key, value: stringValue };
   });
 
   const { error } = await getSupabase().from("SiteConfig").upsert(upserts, {
@@ -121,6 +121,10 @@ export async function updateSettings(
 
   if (error) {
     console.error("Error updating settings:", error);
-    throw error;
+    const message = error.message || "";
+    if (message.includes("duplicate key") || message.includes("unique constraint") || message.includes("violates")) {
+      throw new Error("Gagal menyimpan: pastikan kolom id di SiteConfig punya default gen_random_uuid().");
+    }
+    throw new Error(error.message || "Gagal menyimpan pengaturan");
   }
 }

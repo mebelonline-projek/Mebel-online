@@ -36,6 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import ProductVariantEditor from "@/components/admin/ProductVariantEditor";
 import { sortVariants } from "@/lib/variant-utils";
+import { kompresFoto } from "@/lib/image-compression";
 import { toast } from "sonner";
 import {
   Plus,
@@ -250,26 +251,49 @@ export default function ProductsPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
 
+    const target = deleteTarget;
+    const prevProducts = products;
+
+    // ── Optimistic: tutup dialog, hapus dari state, toast sukses instan ──
+    setDeleteTarget(null);
+    setProducts((prev) => prev.filter((p) => p.id !== target.id));
+    toast.success("Produk berhasil dihapus");
+
+    // ── API delete tetap jalan di background ──
     try {
-      const res = await fetch(`/api/products/${deleteTarget.id}`, {
+      const res = await fetch(`/api/products/${target.id}`, {
         method: "DELETE",
       });
       const data = await res.json();
 
-      if (data.success) {
-        toast.success("Produk berhasil dihapus");
-        setDeleteTarget(null);
-        // Jika halaman saat ini kosong setelah hapus, mundur satu halaman
+      if (!data.success) {
+        // Rollback jika gagal
+        setProducts(prevProducts);
+        toast.error(data.error || "Gagal menghapus produk", {
+          action: {
+            label: "Coba Lagi",
+            onClick: () => setDeleteTarget(target),
+          },
+        });
+      } else {
+        // Hapus halaman kosong
         const targetPage =
-          products.length === 1 && pagination.page > 1
+          prevProducts.length === 1 && pagination.page > 1
             ? pagination.page - 1
             : pagination.page;
-        fetchProducts(targetPage);
-      } else {
-        toast.error(data.error || "Gagal menghapus produk");
+        if (targetPage !== pagination.page) {
+          fetchProducts(targetPage);
+        }
       }
     } catch {
-      toast.error("Terjadi kesalahan");
+      // Rollback jika error jaringan
+      setProducts(prevProducts);
+      toast.error("Terjadi kesalahan. Produk gagal dihapus.", {
+        action: {
+          label: "Coba Lagi",
+          onClick: () => setDeleteTarget(target),
+        },
+      });
     }
   };
 
@@ -550,12 +574,12 @@ export default function ProductsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="category">Kategori *</Label>
+              <Label className="text-sm font-medium">Kategori *</Label>
               <Select
                 value={form.categoryId}
                 onValueChange={(v) => setForm((p) => ({ ...p, categoryId: v ?? "" }))}
               >
-                <SelectTrigger>
+                <SelectTrigger id="category">
                   <SelectValue>
                     {categories.find((c) => c.id === form.categoryId)?.name ||
                       "Pilih kategori"}
@@ -581,6 +605,7 @@ export default function ProductsPage() {
                   onImageUploaded={(url) => setForm((p) => ({ ...p, image: url }))}
                   onImageRemoved={() => setForm((p) => ({ ...p, image: "" }))}
                   folder="products"
+                  tipeFoto="produk"
                 />
               </div>
 
@@ -606,9 +631,9 @@ export default function ProductsPage() {
                 </div>
 
                 {/* Grid thumbnail galeri */}
-                {(form.images as string[]).length > 0 ? (
+                {((form.images ?? []) as string[]).length > 0 ? (
                   <div className="flex flex-wrap gap-2">
-                    {(form.images as string[]).map((url, i) => (
+                    {((form.images ?? []) as string[]).map((url, i) => (
                       <div key={i} className="relative group/thumb">
                         <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
                           <Image
@@ -633,7 +658,7 @@ export default function ProductsPage() {
                             } catch {
                               // silent fail
                             }
-                            const updated = (form.images as string[]).filter((_, j) => j !== i);
+                            const updated = ((form.images ?? []) as string[]).filter((_, j) => j !== i);
                             setForm((p) => ({ ...p, images: updated }));
                           }}
                           className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow-sm hover:bg-red-600 transition-colors"
@@ -661,12 +686,15 @@ export default function ProductsPage() {
                   const files = Array.from(e.target.files ?? []);
                   if (!files.length) return;
                   setMultiFotoUploading(true);
-                  const newImages = [...(form.images as string[])];
+                  const newImages = [...((form.images ?? []) as string[])];
                   for (const file of files) {
                     try {
+                      // Kompres dulu seperti gambar utama, tapi folder ke products/varian
+                      const hasil = await kompresFoto(file, "galeri-produk");
                       const formData = new FormData();
-                      formData.append("file", file);
-                      formData.append("folder", "products");
+                      formData.append("file", hasil.file);
+                      formData.append("folder", hasil.folder);
+                      formData.append("tipeFoto", "galeri-produk");
                       const res = await fetch("/api/upload", { method: "POST", body: formData });
                       const data = await res.json();
                       if (data.success) newImages.push(data.data.url);

@@ -28,7 +28,7 @@ export default function ProductVariantPicker({
           </label>
 
           {group.type === "color" ? (
-            /* ── Color swatches (circles with check on selected) ── */
+            /* ── Color swatches dengan teks nama warna ── */
             <div className="flex flex-wrap gap-2">
               {group.options.map((opt) => {
                 const isSelected = selected[group.name] === opt.value;
@@ -37,20 +37,21 @@ export default function ProductVariantPicker({
                     key={opt.value}
                     type="button"
                     onClick={() => onChange(group.name, opt.value)}
-                    whileHover={{ scale: 1.12 }}
-                    whileTap={{ scale: 0.9 }}
-                    className={`relative h-7 w-7 rounded-full transition-all duration-200 ${
+                    whileTap={{ scale: 0.94 }}
+                    className={`inline-flex items-center gap-1.5 px-2.5 h-7 rounded-md text-xs font-medium transition-all duration-200 ${
                       isSelected
-                        ? "ring-2 ring-brand-maroon ring-offset-1 scale-110"
-                        : "ring-1 ring-gray-300 hover:ring-gray-400"
+                        ? "bg-brand-maroon text-white shadow-sm shadow-brand-maroon/20 ring-2 ring-brand-maroon"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200 ring-1 ring-gray-300"
                     }`}
-                    style={{ backgroundColor: opt.hex || "#ddd" }}
                     aria-label={`${group.name}: ${opt.label}`}
                   >
+                    <span
+                      className="h-3.5 w-3.5 rounded-full block shrink-0 ring-1 ring-inset ring-black/10"
+                      style={{ backgroundColor: opt.hex || "#ccc" }}
+                    />
+                    <span>{opt.label}</span>
                     {isSelected && (
-                      <span className="absolute inset-0 flex items-center justify-center">
-                        <Check className={`h-4 w-4 ${opt.hex && isLightColor(opt.hex) ? "text-gray-800" : "text-white"}`} strokeWidth={3} />
-                      </span>
+                      <Check className="h-3 w-3 ml-0.5" strokeWidth={3} />
                     )}
                   </motion.button>
                 );

@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { ImagePlus, Loader2, Upload } from "lucide-react";
+import { ImagePlus, Upload } from "lucide-react";
+import { kompresFoto, getCompressInfo, type TipeFoto } from "@/lib/image-compression";
 
 interface ImageUploaderProps {
   currentImage: string;
@@ -12,7 +13,11 @@ interface ImageUploaderProps {
   onImageRemoved?: () => void;
   folder?: string;
   disabled?: boolean;
+  /** Tipe foto untuk konfigurasi kompresi otomatis ('hero' | 'produk' | 'tentang-kami') */
+  tipeFoto?: TipeFoto;
 }
+
+const COMPRESS_ENABLED = true; // Set false jika ingin upload mentah (tanpa kompresi)
 
 export default function ImageUploader({
   currentImage,
@@ -20,6 +25,7 @@ export default function ImageUploader({
   onImageRemoved,
   folder = "general",
   disabled = false,
+  tipeFoto,
 }: ImageUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -28,9 +34,27 @@ export default function ImageUploader({
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
+      // ── Kompresi client-side jika tipeFoto ditentukan ──
+      let fileToUpload = file;
+      let uploadFolder = folder;
+
+      if (tipeFoto && COMPRESS_ENABLED) {
+        try {
+          const hasil = await kompresFoto(file, tipeFoto);
+          fileToUpload = hasil.file;
+          uploadFolder = hasil.folder;
+          // Info kompresi bisa ditambahkan di sini jika diperlukan
+        } catch (compressError) {
+          console.warn("Kompresi gagal, upload asli:", compressError);
+          toast.warning("Kompresi gagal, file akan diupload dalam format asli.");
+        }
+      }
+
+      // ── Upload ke API (background — preview sudah tampil instan) ──
       const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", folder);
+      formData.append("file", fileToUpload);
+      formData.append("folder", uploadFolder);
+      if (tipeFoto) formData.append("tipeFoto", tipeFoto);
 
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -39,18 +63,20 @@ export default function ImageUploader({
       const data = await res.json();
 
       if (data.success) {
-        // Hapus preview lokal setelah upload sukses
+        // Ganti preview lokal dengan URL asli dari server
         if (localPreview) URL.revokeObjectURL(localPreview);
         setLocalPreview(null);
         onImageUploaded(data.data.url);
+        toast.success("Gambar berhasil diupload" + (tipeFoto ? ` (${getCompressInfo(tipeFoto).label})` : ""));
       } else {
-        // Fallback: kalau gagal, reset
+        // Gagal: hapus preview lokal, biarkan area upload kosong lagi
         if (localPreview) URL.revokeObjectURL(localPreview);
         setLocalPreview(null);
         throw new Error(data.error || "Gagal upload");
       }
-    } catch {
-      toast.error("Gagal mengupload gambar");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Gagal mengupload gambar";
+      toast.error(msg);
       if (localPreview) URL.revokeObjectURL(localPreview);
       setLocalPreview(null);
     } finally {
@@ -62,11 +88,11 @@ export default function ImageUploader({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Tampilkan preview lokal dulu
+    // Tampilkan preview lokal instan — user langsung lihat gambar
     const previewUrl = URL.createObjectURL(file);
     setLocalPreview(previewUrl);
 
-    // Upload ke Supabase
+    // Upload ke Supabase di background (tanpa overlay loading)
     handleUpload(file);
   };
 
@@ -153,13 +179,15 @@ export default function ImageUploader({
               )}
             </div>
 
-            {/* Loading overlay */}
+            {/* Upload indicator — linear bar di bawah gambar, tidak nutup preview */}
             {uploading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                <div className="flex flex-col items-center gap-2">
-                  <Loader2 className="h-8 w-8 animate-spin text-white" />
-                  <span className="text-sm font-medium text-white">
-                    Mengupload...
+              <div className="absolute bottom-0 left-0 right-0 z-10">
+                <div className="h-1 bg-gray-200 overflow-hidden rounded-b-xl">
+                  <div className="h-full bg-brand-maroon animate-pulse" style={{ width: "60%" }} />
+                </div>
+                <div className="absolute top-1 right-2">
+                  <span className="text-[10px] font-medium text-gray-500 bg-white/90 px-1.5 py-0.5 rounded shadow-sm">
+                    Menyimpan...
                   </span>
                 </div>
               </div>
@@ -174,13 +202,11 @@ export default function ImageUploader({
               <p className="text-sm font-medium text-gray-600">
                 Klik untuk upload gambar
               </p>
-              <p className="mt-0.5 text-xs text-gray-400">
-                JPG, PNG, WebP, AVIF — Maks 5MB
-              </p>
             </div>
           </div>
         )}
       </div>
+
     </div>
   );
 }

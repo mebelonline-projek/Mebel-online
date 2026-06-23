@@ -63,7 +63,8 @@ export default function ProductCard({
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [hoverImageIndex, setHoverImageIndex] = useState<number | null>(null);
-  const [imageError, setImageError] = useState(false);
+  const [imageError, setImageError] = useState<Record<number, boolean>>({});
+  const [imageLoaded, setImageLoaded] = useState<Record<number, boolean>>({});
 
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -77,7 +78,7 @@ export default function ProductCard({
     []
   );
 
-  // Reset imageError saat tampilan berganti
+  // Saat displayIndex berubah, jangan reset imageLoaded — biarkan gambar tetap di DOM
   const displayIndex = hoverImageIndex ?? currentImageIndex;
 
   // ── Varian dipilih ──
@@ -198,19 +199,36 @@ export default function ProductCard({
         className="relative aspect-[4/3] overflow-hidden bg-gray-100 select-none"
         onClick={handleImageClick}
       >
-        {gallery.length > 0 && !imageError ? (
-          <Image
-            key={displayIndex}
-            src={gallery[displayIndex]}
-            alt={product.name}
-            fill
-            priority={priority}
-            loading={priority ? "eager" : "lazy"}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            onError={() => setImageError(true)}
-            className="object-contain bg-gray-100 group-hover:scale-105 transition-transform duration-700"
-            draggable={false}
-          />
+        {gallery.length > 0 ? (
+          <div className="absolute inset-0">
+            {gallery.map((url, i) => (
+              <div
+                key={i}
+                className={`absolute inset-0 transition-opacity duration-300 ${
+                  i === displayIndex
+                    ? "opacity-100 pointer-events-auto"
+                    : "opacity-0 pointer-events-none"
+                }`}
+              >
+                <Image
+                  src={url}
+                  alt={product.name}
+                  fill
+                  priority={priority && i === 0}
+                  loading={priority && i === 0 ? "eager" : "lazy"}
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  onError={() => setImageError((prev) => ({ ...prev, [i]: true }))}
+                  className={`object-contain bg-gray-100 group-hover:scale-105 transition-transform duration-700 ${
+                    imageLoaded[i] ? "opacity-100" : "opacity-0"
+                  }`}
+                  draggable={false}
+                  onLoad={() =>
+                    setImageLoaded((prev) => ({ ...prev, [i]: true }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <ShoppingBag className="h-12 w-12 text-gray-300" />

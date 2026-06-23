@@ -2,6 +2,17 @@ import { NextResponse } from "next/server";
 import { uploadToSupabase, validateFile } from "@/lib/upload";
 import { requireAdmin } from "@/lib/api-auth";
 
+/**
+ * POST /api/upload
+ *
+ * Menerima file yang SUDAH dikompres dari client-side.
+ * Parameter:
+ *   - file: File (wajib)
+ *   - folder: string (opsional, default "general")
+ *   - tipeFoto: string (opsional, untuk keperluan logging/kategorisasi)
+ *
+ * Untuk kompresi client-side gunakan fungsi `prosesDanUploadFoto()` dari @/lib/image-compression.
+ */
 export async function POST(request: Request) {
   try {
     // Proteksi: hanya admin
@@ -11,6 +22,7 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const folder = (formData.get("folder") as string) ?? "general";
+    const tipeFoto = (formData.get("tipeFoto") as string) ?? undefined;
 
     if (!file) {
       return NextResponse.json(
@@ -24,6 +36,13 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, error: validationError },
         { status: 400 }
+      );
+    }
+
+    // Log jika tipeFoto diberikan
+    if (tipeFoto) {
+      console.log(
+        `📤 [/api/upload] tipeFoto=${tipeFoto} | file=${file.name} | size=${(file.size / 1024).toFixed(2)} KB | type=${file.type}`
       );
     }
 

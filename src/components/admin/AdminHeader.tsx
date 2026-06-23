@@ -5,10 +5,19 @@ import { useSession } from "next-auth/react";
 export default function AdminHeader({ title }: { title: string }) {
   const { data: session } = useSession();
 
+  const initials = session?.user?.name
+    ? session.user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "AD";
+
   return (
     <header className="h-16 border-b border-gray-200 bg-white flex items-center justify-between px-6 lg:px-8">
       <div className="flex items-center gap-3">
-        {/* Logo kecil untuk mobile & desktop */}
+        {/* Logo — hanya 1 di kiri */}
         <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl overflow-hidden flex-shrink-0 ring-1 ring-brand-maroon/20 p-0.5">
           <img
             src="/logo/admin-logo.png"
@@ -28,13 +37,9 @@ export default function AdminHeader({ title }: { title: string }) {
             {session?.user?.email || ""}
           </p>
         </div>
-        {/* Avatar logo menggantikan bulat merah AT */}
-        <div className="h-9 w-9 rounded-xl overflow-hidden ring-2 ring-gray-100 flex-shrink-0 p-0.5 bg-white">
-          <img
-            src="/logo/admin-logo.png"
-            alt={session?.user?.name || "Admin"}
-            className="w-full h-full object-contain"
-          />
+        {/* Avatar inisial user — bukan logo dobel */}
+        <div className="h-9 w-9 rounded-xl bg-brand-maroon flex items-center justify-center text-white text-sm font-semibold ring-2 ring-gray-100 flex-shrink-0">
+          {initials}
         </div>
       </div>
     </header>
