@@ -82,8 +82,8 @@ export default async function HomePage() {
 
   const products = (productsResult.data ?? []).map((p) => ({
     ...p,
-    images: p.images ? JSON.parse(p.images) : [],
-    variants: p.variants ? JSON.parse(p.variants) : [],
+    images: p.images ? (() => { try { const parsed = JSON.parse(p.images); return Array.isArray(parsed) ? parsed.filter(i => typeof i === "string") : []; } catch { return []; } })() : [],
+    variants: p.variants ? (() => { try { const parsed = JSON.parse(p.variants); return Array.isArray(parsed) ? parsed : []; } catch { return []; } })() : [],
   }));
 
   const totalProducts = countResult.count ?? 0;

@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import ProductVariantEditor from "@/components/admin/ProductVariantEditor";
 import { toast } from "sonner";
 import {
   Plus,
@@ -46,7 +47,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ListOrdered,
-  X,
 } from "lucide-react";
 
 const PAGE_SIZE = 50;
@@ -107,13 +107,6 @@ export default function ProductsPage() {
     total: 0,
     totalPages: 0,
   });
-  // Variant inline form states
-  const [addingGroup, setAddingGroup] = useState(false);
-  const [newGroupName, setNewGroupName] = useState("");
-  const [newGroupType, setNewGroupType] = useState<"color" | "size" | "material" | "text">("color");
-  const [addingOptionFor, setAddingOptionFor] = useState<number | null>(null);
-  const [newOptLabel, setNewOptLabel] = useState("");
-  const [newOptHex, setNewOptHex] = useState("");
 
   const fetchProducts = useCallback(async (page: number) => {
     setIsLoadingMore(true);
@@ -591,243 +584,12 @@ export default function ProductsPage() {
             <div className="space-y-3 border-t border-gray-100 pt-4">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-semibold">Varian Produk</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setNewGroupName("");
-                    setNewGroupType("color");
-                    setAddingGroup(true);
-                  }}
-                  className="rounded-xl h-8 text-xs"
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1" />
-                  Tambah Varian
-                </Button>
               </div>
 
-              {/* Inline form: tambah grup varian baru */}
-              {addingGroup && (
-                <div className="rounded-xl border border-brand-maroon/30 bg-brand-maroon/5 p-3 space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-xs text-gray-500">Nama Grup</Label>
-                      <Input
-                        value={newGroupName}
-                        onChange={(e) => setNewGroupName(e.target.value)}
-                        placeholder="Contoh: Warna, Ukuran"
-                        className="h-8 text-sm mt-1"
-                        autoFocus
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-gray-500">Tipe</Label>
-                      <Select value={newGroupType} onValueChange={(v) => setNewGroupType(v as typeof newGroupType)}>
-                        <SelectTrigger className="h-8 text-sm mt-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="color">Color (circle swatches)</SelectItem>
-                          <SelectItem value="size">Size (pill buttons)</SelectItem>
-                          <SelectItem value="material">Material (pill buttons)</SelectItem>
-                          <SelectItem value="text">Text (pill buttons)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2 pt-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setAddingGroup(false)}
-                      className="h-7 text-xs"
-                    >
-                      Batal
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={!newGroupName.trim()}
-                      onClick={() => {
-                        setForm((p) => ({
-                          ...p,
-                          variants: [...p.variants, { type: newGroupType, name: newGroupName.trim(), options: [] }],
-                        }));
-                        setAddingGroup(false);
-                        setNewGroupName("");
-                      }}
-                      className="h-7 text-xs bg-brand-maroon hover:bg-brand-maroon-dark text-white"
-                    >
-                      Simpan
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {form.variants.length === 0 && (
-                <p className="text-xs text-gray-400 italic">
-                  Belum ada varian. Klik &ldquo;Tambah Varian&rdquo; untuk menambahkan pilihan warna, ukuran, atau bahan.
-                </p>
-              )}
-
-              {form.variants.map((group, gi) => (
-                <div
-                  key={gi}
-                  className="rounded-xl border border-gray-200 bg-gray-50/50 p-3 space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider px-2 py-0.5 rounded-full bg-white border">
-                        {group.type}
-                      </span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {group.name}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setForm((p) => ({
-                          ...p,
-                          variants: p.variants.filter((_, i) => i !== gi),
-                        }))
-                      }
-                      className="text-gray-400 hover:text-red-500 transition-colors"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  {/* Options list */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {group.options.map((opt, oi) => (
-                      <span
-                        key={oi}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border text-xs"
-                      >
-                        {group.type === "color" && opt.hex && (
-                          <span
-                            className="h-3.5 w-3.5 rounded-full"
-                            style={{ backgroundColor: opt.hex }}
-                          />
-                        )}
-                        {opt.label}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setForm((p) => {
-                              const updated = [...p.variants];
-                              updated[gi] = {
-                                ...updated[gi],
-                                options: updated[gi].options.filter((_, i) => i !== oi),
-                              };
-                              return { ...p, variants: updated };
-                            })
-                          }
-                          className="text-gray-300 hover:text-red-400 ml-0.5"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAddingOptionFor(gi);
-                        setNewOptLabel("");
-                        setNewOptHex(group.type === "color" ? "#" : "");
-                      }}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-gray-300 text-xs text-gray-400 hover:text-gray-600 hover:border-gray-400 transition-colors"
-                    >
-                      <Plus className="h-3 w-3" />
-                      Tambah opsi
-                    </button>
-                  </div>
-
-                  {/* Inline form: tambah opsi baru */}
-                  {addingOptionFor === gi && (
-                    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-2 space-y-2 mt-1">
-                      <div className="flex items-end gap-2">
-                        <div className="flex-1">
-                          <Label className="text-xs text-gray-500">Label</Label>
-                          <Input
-                            value={newOptLabel}
-                            onChange={(e) => setNewOptLabel(e.target.value)}
-                            placeholder={group.type === "color" ? "Coklat" : group.type === "size" ? "M" : "Kayu Jati"}
-                            className="h-8 text-sm mt-0.5"
-                            autoFocus
-                          />
-                        </div>
-                        {group.type === "color" && (
-                          <div className="w-24">
-                            <Label className="text-xs text-gray-500">Hex</Label>
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <Input
-                                value={newOptHex}
-                                onChange={(e) => setNewOptHex(e.target.value)}
-                                placeholder="#8B4513"
-                                className="h-8 text-sm font-mono flex-1"
-                              />
-                              <input
-                                type="color"
-                                value={newOptHex.match(/^#[0-9a-fA-F]{6}$/) ? newOptHex : "#000000"}
-                                onChange={(e) => setNewOptHex(e.target.value)}
-                                className="h-8 w-8 p-0.5 rounded border border-gray-300 cursor-pointer shrink-0"
-                              />
-                              {newOptHex.match(/^#[0-9a-fA-F]{6}$/) && (
-                                <span
-                                  className="h-6 w-6 rounded-full border shrink-0"
-                                  style={{ backgroundColor: newOptHex }}
-                                />
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={!newOptLabel.trim()}
-                          onClick={() => {
-                            const value = newOptLabel.toLowerCase().replace(/\s+/g, "-");
-                            let hex: string | undefined;
-                            if (group.type === "color" && newOptHex.match(/^#[0-9a-fA-F]{6}$/)) {
-                              hex = newOptHex;
-                            }
-                            setForm((p) => {
-                              const updated = [...p.variants];
-                              updated[gi] = {
-                                ...updated[gi],
-                                options: [
-                                  ...updated[gi].options,
-                                  { label: newOptLabel.trim(), value, ...(hex ? { hex } : {}) },
-                                ],
-                              };
-                              return { ...p, variants: updated };
-                            });
-                            setAddingOptionFor(null);
-                            setNewOptLabel("");
-                            setNewOptHex("");
-                          }}
-                          className="h-8 text-xs bg-brand-maroon hover:bg-brand-maroon-dark text-white shrink-0"
-                        >
-                          Tambah
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setAddingOptionFor(null)}
-                          className="h-8 text-xs shrink-0"
-                        >
-                          Batal
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+              <ProductVariantEditor
+                variants={form.variants as { type: "color" | "size" | "material" | "text"; name: string; options: { label: string; value: string; hex?: string }[] }[]}
+                onChange={(newVariants) => setForm((p) => ({ ...p, variants: newVariants }))}
+              />
             </div>
 
             <div className="flex items-center gap-6">

@@ -6,6 +6,16 @@
  * Sort product variants in a deterministic order.
  * Typically sorts color variants first, then size, then others alphabetically.
  */
+/**
+ * Label display names for each variant type.
+ */
+export const VARIANT_LABELS: Record<string, string> = {
+  color: "Warna",
+  size: "Ukuran",
+  material: "Bahan",
+  text: "Opsi Tambahan",
+};
+
 export function sortVariants<T extends { name: string }>(variants: T[]): T[] {
   const priority: Record<string, number> = {
     warna: 0,
