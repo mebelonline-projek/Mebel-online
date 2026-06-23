@@ -12,8 +12,6 @@ import {
   User,
   LogOut,
   ChevronLeft,
-  Menu,
-  Store,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -37,26 +35,22 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Overlay */}
-      <div
-        className={`fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity ${
-          collapsed ? "opacity-0 pointer-events-none" : "opacity-100"
-        }`}
-        onClick={() => setCollapsed(true)}
-      />
-
-      {/* Sidebar */}
+      {/* Sidebar — hanya muncul di lg: ke atas */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ${
-          collapsed ? "-translate-x-full lg:translate-x-0 lg:w-16" : "translate-x-0 w-64"
+        className={`fixed top-0 left-0 z-50 h-full bg-white border-r border-gray-200 flex-col transition-all duration-300 hidden lg:flex ${
+          collapsed ? "w-16" : "w-64"
         }`}
       >
-        {/* Brand */}
+        {/* Brand with Logo */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-100">
           {!collapsed && (
             <Link href="/admin/dashboard" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-brand-maroon flex items-center justify-center">
-                <Store className="h-4 w-4 text-white" />
+              <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0">
+                <img
+                  src="/logo/admin-logo.png"
+                  alt="Muara Teweh Furniture"
+                  className="w-full h-full object-contain"
+                />
               </div>
               <div>
                 <p className="text-xs font-semibold text-brand-maroon leading-tight">
@@ -73,7 +67,7 @@ export default function Sidebar() {
             variant="ghost"
             size="icon"
             onClick={() => setCollapsed(!collapsed)}
-            className="hidden lg:flex shrink-0"
+            className="shrink-0"
             aria-label={collapsed ? "Buka sidebar" : "Tutup sidebar"}
           >
             <ChevronLeft
@@ -120,17 +114,6 @@ export default function Sidebar() {
           </button>
         </div>
       </aside>
-
-      {/* Mobile Toggle */}
-      <button
-        onClick={() => setCollapsed(false)}
-        className={`fixed top-4 left-4 z-30 lg:hidden bg-white rounded-xl shadow-md p-2.5 border border-gray-200 transition-opacity ${
-          collapsed ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-        aria-label="Buka menu"
-      >
-        <Menu className="h-5 w-5 text-gray-700" />
-      </button>
     </>
   );
 }

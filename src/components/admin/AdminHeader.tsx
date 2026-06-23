@@ -8,7 +8,15 @@ export default function AdminHeader({ title }: { title: string }) {
 
   return (
     <header className="h-16 border-b border-gray-200 bg-white flex items-center justify-between px-6 lg:px-8">
-      <div>
+      <div className="flex items-center gap-3">
+        {/* Logo kecil untuk mobile */}
+        <div className="lg:hidden w-8 h-8 rounded-lg overflow-hidden flex-shrink-0">
+          <img
+            src="/logo/admin-logo.png"
+            alt="Logo"
+            className="w-full h-full object-contain"
+          />
+        </div>
         <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
       </div>
 
