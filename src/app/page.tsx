@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { getAllSettings } from "@/lib/site-config";
 import Navbar from "@/components/landing/Navbar";
@@ -8,10 +9,9 @@ import AboutSection from "@/components/landing/AboutSection";
 import ContactSection from "@/components/landing/ContactSection";
 import Footer from "@/components/landing/Footer";
 import WhatsAppButton from "@/components/landing/WhatsAppButton";
+import CatalogSkeleton from "@/components/landing/CatalogSkeleton";
 
 export const revalidate = 60;
-
-export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getAllSettings();
@@ -42,6 +42,9 @@ export async function generateMetadata(): Promise<Metadata> {
       "lemari",
       "perabot rumah",
     ],
+    alternates: {
+      canonical: process.env.AUTH_URL || "https://tokofurnitur.com",
+    },
   };
 }
 
@@ -132,14 +135,16 @@ export default async function HomePage() {
       />
 
       {/* Main Catalog — Bento Grid dengan filter kategori via API */}
-      <BentoCatalog
-        products={products}
-        categories={categories}
-        waNumber={settings.wa_number}
-        waMessage={settings.wa_message}
-        totalProducts={totalProducts}
-        initialLimit={INITIAL_PRODUCT_LIMIT}
-      />
+      <Suspense fallback={<CatalogSkeleton />}>
+        <BentoCatalog
+          products={products}
+          categories={categories}
+          waNumber={settings.wa_number}
+          waMessage={settings.wa_message}
+          totalProducts={totalProducts}
+          initialLimit={INITIAL_PRODUCT_LIMIT}
+        />
+      </Suspense>
 
       <AboutSection
         title={settings.about_title}

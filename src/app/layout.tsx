@@ -36,6 +36,9 @@ export const metadata: Metadata = {
     "lemari",
     "perabot rumah",
   ],
+  alternates: {
+    canonical: process.env.AUTH_URL || "https://tokofurnitur.com",
+  },
   openGraph: {
     title: "Muara Teweh — Mebel Online",
     description:
