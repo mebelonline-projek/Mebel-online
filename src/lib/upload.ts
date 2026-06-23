@@ -30,7 +30,7 @@ export function validateFile(file: {
  */
 export async function deleteFromSupabase(url: string): Promise<boolean> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.warn("deleteFromSupabase: Supabase not configured");
@@ -81,7 +81,7 @@ export async function uploadToSupabase(
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
   const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? "furniture-images";
 
   if (!supabaseUrl || !supabaseKey) {

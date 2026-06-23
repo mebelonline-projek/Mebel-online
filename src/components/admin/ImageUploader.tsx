@@ -9,12 +9,16 @@ import { ImagePlus, Loader2, Upload } from "lucide-react";
 interface ImageUploaderProps {
   currentImage: string;
   onImageUploaded: (url: string) => void;
+  onImageRemoved?: () => void;
+  folder?: string;
   disabled?: boolean;
 }
 
 export default function ImageUploader({
   currentImage,
   onImageUploaded,
+  onImageRemoved,
+  folder = "general",
   disabled = false,
 }: ImageUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -26,7 +30,7 @@ export default function ImageUploader({
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("folder", "products");
+      formData.append("folder", folder);
 
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -117,14 +121,36 @@ export default function ImageUploader({
               sizes="(max-width: 640px) 100vw, 50vw"
             />
 
-            {/* Overlay hover — muncul indikator "ganti" */}
+            {/* Overlay hover — Ganti & Hapus */}
             <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-200 hover:bg-black/40">
-              <div className="flex items-center gap-2 rounded-lg bg-white/90 px-4 py-2 opacity-0 shadow-sm transition-opacity duration-200 hover:opacity-100">
+              <div className="flex items-center gap-2 rounded-lg bg-white/90 px-4 py-2 opacity-0 shadow-sm transition-opacity duration-200 hover:opacity-100 cursor-pointer">
                 <Upload className="h-4 w-4 text-gray-700" />
                 <span className="text-sm font-medium text-gray-700">
                   Ganti Foto
                 </span>
               </div>
+              {onImageRemoved && currentImage && (
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      await fetch("/api/upload/delete", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ url: currentImage }),
+                      });
+                    } catch {
+                      // silent fail
+                    }
+                    onImageRemoved();
+                  }}
+                  className="flex items-center gap-2 rounded-lg bg-red-500/90 px-4 py-2 opacity-0 shadow-sm transition-opacity duration-200 hover:opacity-100 hover:bg-red-600 text-white text-sm font-medium"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                  Hapus
+                </button>
+              )}
             </div>
 
             {/* Loading overlay */}

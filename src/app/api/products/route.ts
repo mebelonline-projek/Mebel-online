@@ -141,7 +141,14 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { success: true, data: product },
+      {
+        success: true,
+        data: {
+          ...product,
+          images: product.images ? JSON.parse(product.images) : [],
+          variants: product.variants ? JSON.parse(product.variants) : [],
+        },
+      },
       { status: 201 }
     );
   } catch (error) {

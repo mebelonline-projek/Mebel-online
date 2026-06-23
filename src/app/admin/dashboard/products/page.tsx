@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import AdminHeader from "@/components/admin/AdminHeader";
 import ImageUploader from "@/components/admin/ImageUploader";
 import Image from "next/image";
@@ -35,6 +35,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import ProductVariantEditor from "@/components/admin/ProductVariantEditor";
+import { sortVariants } from "@/lib/variant-utils";
 import { toast } from "sonner";
 import {
   Plus,
@@ -47,7 +48,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ListOrdered,
+  X,
 } from "lucide-react";
+import type { ProductVariant } from "@/types";
 
 const PAGE_SIZE = 50;
 
@@ -64,7 +67,7 @@ interface Product {
   description: string | null;
   image: string | null;
   images: string[];
-  variants: { type: string; name: string; options: { label: string; value: string; hex?: string }[] }[];
+  variants: ProductVariant[];
   categoryId: string;
   category: { name: string; slug: string };
   isActive: boolean;
@@ -83,10 +86,11 @@ const emptyForm = {
   name: "",
   description: "",
   image: "",
+  images: [] as string[],
   categoryId: "",
   sortOrder: 0,
   isActive: true,
-  variants: [] as { type: string; name: string; options: { label: string; value: string; hex?: string }[] }[],
+  variants: [] as ProductVariant[],
 };
 
 export default function ProductsPage() {
@@ -107,6 +111,8 @@ export default function ProductsPage() {
     total: 0,
     totalPages: 0,
   });
+  const [multiFotoUploading, setMultiFotoUploading] = useState(false);
+  const multiFotoInputRef = useRef<HTMLInputElement>(null);
 
   const fetchProducts = useCallback(async (page: number) => {
     setIsLoadingMore(true);
@@ -181,22 +187,23 @@ export default function ProductsPage() {
 
   const openCreate = () => {
     setEditingProduct(null);
-    // sortOrder 0 → backend auto-fill dengan nomor tertinggi +1
+    // sortOrder 0 -> backend auto-fill dengan nomor tertinggi +1
     setForm({ ...emptyForm, variants: [], sortOrder: 0 });
     setIsDialogOpen(true);
   };
 
   const openEdit = (product: Product) => {
     setEditingProduct(product);
-    // Pakai sortOrder asli dari database, bukan posisi di daftar filter
+    const images = product.images ?? [];
     setForm({
       name: product.name,
       description: product.description ?? "",
       image: product.image ?? "",
+      images: images,
       categoryId: product.categoryId,
       sortOrder: product.sortOrder,
       isActive: product.isActive,
-      variants: product.variants ?? [],
+      variants: sortVariants(product.variants ?? []),
     });
     setIsDialogOpen(true);
   };
@@ -215,10 +222,13 @@ export default function ProductsPage() {
         : "/api/products";
       const method = editingProduct ? "PUT" : "POST";
 
+      // Build payload -- always simple mode, sort variants
+      const payload = { ...form, variants: sortVariants(form.variants) };
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -561,11 +571,120 @@ export default function ProductsPage() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Gambar Produk</Label>
-              <ImageUploader
-                currentImage={form.image}
-                onImageUploaded={(url) => setForm((p) => ({ ...p, image: url }))}
+            {/* Gambar Utama + Galeri Foto */}
+            <div className="space-y-4">
+              {/* Gambar Utama */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Gambar Utama</Label>
+                <ImageUploader
+                  currentImage={form.image}
+                  onImageUploaded={(url) => setForm((p) => ({ ...p, image: url }))}
+                  onImageRemoved={() => setForm((p) => ({ ...p, image: "" }))}
+                  folder="products"
+                />
+              </div>
+
+              {/* Galeri Foto */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Galeri Foto</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => multiFotoInputRef.current?.click()}
+                    disabled={multiFotoUploading}
+                    className="rounded-xl h-8 text-xs"
+                  >
+                    {multiFotoUploading ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    ) : (
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                    )}
+                    Tambah Foto
+                  </Button>
+                </div>
+
+                {/* Grid thumbnail galeri */}
+                {(form.images as string[]).length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {(form.images as string[]).map((url, i) => (
+                      <div key={i} className="relative group/thumb">
+                        <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
+                          <Image
+                            src={url}
+                            alt={`Galeri ${i + 1}`}
+                            width={64}
+                            height={64}
+                            className="object-cover w-full h-full"
+                            unoptimized
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            // Hapus dari Supabase dulu
+                            try {
+                              await fetch("/api/upload/delete", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ url }),
+                              });
+                            } catch {
+                              // silent fail
+                            }
+                            const updated = (form.images as string[]).filter((_, j) => j !== i);
+                            setForm((p) => ({ ...p, images: updated }));
+                          }}
+                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow-sm hover:bg-red-600 transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 italic">
+                    Belum ada foto galeri. Klik &ldquo;Tambah Foto&rdquo; untuk menambahkan foto tambahan.
+                  </p>
+                )}
+              </div>
+
+              {/* Hidden file input */}
+              <input
+                ref={multiFotoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif"
+                multiple
+                className="hidden"
+                onChange={async (e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (!files.length) return;
+                  setMultiFotoUploading(true);
+                  const newImages = [...(form.images as string[])];
+                  for (const file of files) {
+                    try {
+                      const formData = new FormData();
+                      formData.append("file", file);
+                      formData.append("folder", "products");
+                      const res = await fetch("/api/upload", { method: "POST", body: formData });
+                      const data = await res.json();
+                      if (data.success) newImages.push(data.data.url);
+                    } catch { toast.error("Gagal upload " + file.name); }
+                  }
+                  setForm((p) => ({ ...p, images: newImages }));
+                  setMultiFotoUploading(false);
+                  if (multiFotoInputRef.current) multiFotoInputRef.current.value = "";
+                }}
+              />
+            </div>
+
+            {/* Varian Produk */}
+            <div className="space-y-3 border-t border-gray-100 pt-4">
+              <Label className="text-sm font-semibold">Varian Produk</Label>
+              <ProductVariantEditor
+                variants={form.variants}
+                onChange={(v) => setForm((p) => ({ ...p, variants: v }))}
               />
             </div>
 
@@ -577,18 +696,6 @@ export default function ProductsPage() {
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
                 placeholder="Deskripsi produk (opsional)"
                 rows={3}
-              />
-            </div>
-
-            {/* ── Variant Management ── */}
-            <div className="space-y-3 border-t border-gray-100 pt-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-semibold">Varian Produk</Label>
-              </div>
-
-              <ProductVariantEditor
-                variants={form.variants as { type: "color" | "size" | "material" | "text"; name: string; options: { label: string; value: string; hex?: string }[] }[]}
-                onChange={(newVariants) => setForm((p) => ({ ...p, variants: newVariants }))}
               />
             </div>
 
@@ -665,7 +772,7 @@ export default function ProductsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Produk</AlertDialogTitle>
             <AlertDialogDescription>
-              Apakah Anda yakin ingin menghapus &quot;{deleteTarget?.name}&quot;?
+              Apakah Anda yakin ingin menghapus &ldquo;{deleteTarget?.name}&rdquo;?
               Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>

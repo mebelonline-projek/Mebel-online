@@ -174,7 +174,14 @@ export async function PUT(
       await deleteFromSupabase(existing.image);
     }
 
-    return NextResponse.json({ success: true, data: product });
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...product,
+        images: product.images ? JSON.parse(product.images) : [],
+        variants: product.variants ? JSON.parse(product.variants) : [],
+      },
+    });
   } catch (error) {
     console.error("Update product error:", error);
     return NextResponse.json(
