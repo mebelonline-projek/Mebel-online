@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { ImagePlus, Loader2, Upload } from "lucide-react";
@@ -45,8 +46,7 @@ export default function ImageUploader({
         throw new Error(data.error || "Gagal upload");
       }
     } catch {
-      // Error handling via toast sudah di handleUploadImage di page.tsx
-      // Tapi kita tetap reset preview lokal
+      toast.error("Gagal mengupload gambar");
       if (localPreview) URL.revokeObjectURL(localPreview);
       setLocalPreview(null);
     } finally {
