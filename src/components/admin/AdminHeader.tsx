@@ -1,7 +1,6 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function AdminHeader({ title }: { title: string }) {
   const { data: session } = useSession();
@@ -9,8 +8,8 @@ export default function AdminHeader({ title }: { title: string }) {
   return (
     <header className="h-16 border-b border-gray-200 bg-white flex items-center justify-between px-6 lg:px-8">
       <div className="flex items-center gap-3">
-        {/* Logo kecil untuk mobile */}
-        <div className="lg:hidden w-8 h-8 rounded-lg overflow-hidden flex-shrink-0">
+        {/* Logo kecil untuk mobile & desktop */}
+        <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl overflow-hidden flex-shrink-0 ring-1 ring-brand-maroon/20 p-0.5">
           <img
             src="/logo/admin-logo.png"
             alt="Logo"
@@ -29,18 +28,14 @@ export default function AdminHeader({ title }: { title: string }) {
             {session?.user?.email || ""}
           </p>
         </div>
-        <Avatar className="h-9 w-9 ring-2 ring-gray-100">
-          <AvatarFallback className="bg-brand-maroon text-white text-xs">
-            {session?.user?.name
-              ? session.user.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()
-                  .slice(0, 2)
-              : "AD"}
-          </AvatarFallback>
-        </Avatar>
+        {/* Avatar logo menggantikan bulat merah AT */}
+        <div className="h-9 w-9 rounded-xl overflow-hidden ring-2 ring-gray-100 flex-shrink-0 p-0.5 bg-white">
+          <img
+            src="/logo/admin-logo.png"
+            alt={session?.user?.name || "Admin"}
+            className="w-full h-full object-contain"
+          />
+        </div>
       </div>
     </header>
   );

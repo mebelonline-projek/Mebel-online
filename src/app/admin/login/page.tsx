@@ -71,12 +71,17 @@ export default function AdminLogin() {
       <div className="w-full max-w-md">
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 mb-4 mx-auto">
-            <img
-              src="/logo/admin-logo.png"
-              alt="Muara Teweh Furniture"
-              className="w-full h-full object-contain"
-            />
+          <div className="relative inline-flex items-center justify-center mb-4 mx-auto">
+            {/* Decorative frame */}
+            <div className="absolute inset-0 w-24 h-24 rounded-2xl border-2 border-brand-maroon/30 rotate-45 scale-110" />
+            <div className="absolute inset-0 w-20 h-20 rounded-2xl border-2 border-brand-maroon/20 -rotate-12 scale-105" />
+            <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-white shadow-sm flex items-center justify-center p-1.5">
+              <img
+                src="/logo/admin-logo.png"
+                alt="Muara Teweh Furniture"
+                className="w-full h-full object-contain"
+              />
+            </div>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">
             Admin Dashboard
