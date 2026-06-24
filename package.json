@@ -9,6 +9,10 @@
     "lint": "next lint",
     "postinstall": "next build"
   },
+  "browserslist": {
+    "production": [">0.3%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version"]
+  },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
     "@hookform/resolvers": "^5.4.0",

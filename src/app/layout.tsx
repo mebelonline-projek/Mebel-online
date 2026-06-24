@@ -55,6 +55,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
+      <head>
+        <link
+          rel="preconnect"
+          href="https://xczbowaotnvzduikgdad.supabase.co"
+        />
+      </head>
       <body
         className={`${inter.variable} ${fredoka.variable} ${poppins.variable} antialiased`}
       >
