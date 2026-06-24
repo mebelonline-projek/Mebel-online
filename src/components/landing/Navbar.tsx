@@ -62,7 +62,7 @@ export default function Navbar({
           <Link href="/" className="flex items-center gap-3 group">
             {/* Logo */}
             {logoUrl ? (
-              <div className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden ring-2 ring-brand-maroon/10">
+              <div className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden ring-2 ring-brand-maroon/30 ring-offset-1 ring-offset-transparent shadow-lg shadow-black/10 transition-transform duration-300 group-hover:scale-105">
                 <Image
                   src={logoUrl}
                   alt={siteName}
@@ -71,8 +71,8 @@ export default function Navbar({
                 />
               </div>
             ) : (
-              <div className="w-12 h-12 shrink-0 rounded-lg bg-brand-maroon flex items-center justify-center">
-                <span className="text-white font-brand text-xl">MT</span>
+              <div className="w-12 h-12 shrink-0 rounded-lg bg-gradient-to-br from-brand-maroon to-brand-maroon-dark flex items-center justify-center ring-2 ring-brand-orange/30 shadow-lg shadow-brand-maroon/25 transition-transform duration-300 group-hover:scale-105">
+                <span className="text-white font-brand text-xl font-bold tracking-tight">MT</span>
               </div>
             )}
 

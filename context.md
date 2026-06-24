@@ -420,6 +420,116 @@
 
 ---
 
+### [2026-06-22 s/d 24] — Final Polish: Landing Page Redesign, PWA, SEO, Performa, & Fitur Admin
+
+#### Yang dilakukan:
+
+**Landing Page Redesign — BentoGrid & Hero Scroll Parallax:**
+1. **BentoGrid layout** — `src/components/landing/bento/BentoGallery.tsx` (BARU) — tata letak grid asimetris untuk galeri produk
+   - Grid 4 kolom dengan 5 posisi gambar (2 besar, 3 kecil) — variasi ukuran untuk tampilan dinamis
+   - Animasi scroll: gambar muncul dengan scale + fade saat scroll ke viewport
+   - Responsive: 1 kolom mobile → 2 kolom tablet → 4 kolom desktop
+2. **BentoCatalog.tsx** — diperbaiki (2 file digabung + path diperbaiki)
+3. **ProductDetailSheet.tsx** — restrukturasi dengan Bento Gallery layout, tambah thumbnail navigator + variant selector di sheet
+4. **Hero.tsx — ganti animasi JS → CSS pure** (commit `3b724d9`):
+   - Word-by-word animation pindah dari Framer Motion ke CSS `@keyframes` + `animation-delay`
+   - Skor Performance Lighthouse naik signifikan (animasi CSS tidak blocking main thread)
+   - Reduced motion tetap dihormati via `@media (prefers-reduced-motion)`
+5. **Hero scroll parallax effect** — background image bergerak lebih lambat saat scroll (parallax CSS)
+6. **page.tsx** — lazy load below-fold components (`dynamic(() => import(...), { ssr: false })`) untuk komponen BentoGallery & ContactSection
+
+**PWA Support for Admin Panel:**
+7. **`public/manifest.json`** (BARU) — scope `/admin/`, start_url `/admin/login`, theme maroon #B31324
+8. **`public/sw.js`** (BARU) — service worker dengan caching strategies:
+   - Cache-first untuk shell assets (CSS, JS, font)
+   - Network-first untuk API calls
+   - Stale-while-revalidate untuk images
+9. **PWA Icons** — 8 ukuran icon (72px–512px) di `public/icons/`
+10. **`next.config.ts`** — tambah headers untuk PWA (sw.js tidak di-cache, manifest.json CORS)
+11. **`src/app/admin/layout.tsx`** — register service worker hanya di admin (landing page tidak terpengaruh)
+12. **`src/components/admin/PwaRegister.tsx`** — komponen registrasi SW (dihapus/digabung ke layout)
+
+**SEO Fix — Google Rendering:**
+13. **`src/app/page.tsx`** — hapus `force-dynamic`, ganti ISR `revalidate = 60` + `dynamic = 'force-static'`
+14. **`src/app/layout.tsx`** — tambah `<Suspense>` wrapper dengan fallback skeleton untuk SEO
+15. **`src/app/loading.tsx`** — redesign loading skeleton (CatalogSkeleton + HeroSkeleton)
+16. **`src/app/sitemap.ts`** — dinamis: baca semua produk & kategori dari DB + halaman statis
+17. **`src/components/landing/CatalogSkeleton.tsx`** (BARU) — skeleton loading untuk katalog produk
+
+**WA & Kontak Settings:**
+18. **WA 2 nomor** — settings admin sekarang punya 2 field: `wa_number` (utama) + `wa_number_2` (cadangan)
+19. **Operating Hours** — tambah field di settings: jam operasional toko (ditampilkan di footer)
+20. **SocialIcon.tsx** — ganti dari logo font-based ke inline SVGs (lebih cepat, tidak delay loading font)
+21. **`src/lib/site-config.ts`** — type diperluas (SiteConfig type + getSiteConfig dengan default values)
+
+**Admin UX Improvements:**
+22. **Mobile Bottom Navigation** — `src/components/admin/MobileNav.tsx` (BARU) — bottom nav bar untuk admin di mobile:
+    - 5 item: Dashboard, Produk, Kategori, Pengaturan, Profil
+    - Active state highlight, icon + label
+    - Hanya muncul di mobile (`md:hidden`)
+23. **Logo Admin** — login page, header, dan sidebar sekarang pakai logo toko (upload dari settings)
+24. **Login Form** — extract ke `LoginForm.tsx` (BARU, komponen terpisah dari page)
+25. **Decorative frame** — logo di login page diberi frame dekoratif
+26. **Sidebar** — otomatis hide di mobile (digantikan MobileNav)
+27. **Error handling login** — notifikasi "Email atau password salah" dengan toast (sebelumnya hanya redirect generic)
+
+**Bug Fixes & Optimization:**
+28. **ImageUploader toast error** — saat upload gagal, tampilkan toast error (bukan silent fail)
+29. **ProductGrid cleanup** — hapus komponen ProductGrid yang tidak dipakai (semua fungsionalitas pindah ke page.tsx)
+30. **5 task handoff fix** (commit `b000fab`):
+    - **Multi-foto** — dukungan upload banyak gambar per produk (field `images[]` di form + API)
+    - **Variant sorting** — opsi varian bisa diurutkan/diatur ulang di admin
+    - **Image Uploader** — perbaiki flow upload (presign URL + upload langsung ke Supabase)
+    - **API parse** — perbaiki parsing JSON variants di API (error saat field null/undefined)
+    - **Env fix** — perbaiki konfigurasi environment variables untuk upload
+31. **Category fetch fix** — hapus parameter `all=true` dari fetch kategori di landing page (sekarang hanya menampilkan kategori yang memiliki produk aktif)
+32. **API settings** — tambah logging detail + validasi input di semua endpoint settings
+33. **Rate limiter** — improvement logging, tetap database-based (fail open)
+34. **Image compression** — `src/lib/image-compression.ts` (BARU) — kompresi gambar client-side sebelum upload (menghemat storage)
+35. **Cleanup storage endpoint** — `POST /api/admin/cleanup-storage` (BARU) — bersihkan file orphan di Supabase Storage yang tidak terpakai
+36. **Presigned URL upload** — `POST /api/upload/presign` + `POST /api/upload/delete` (BARU) — upload path yang lebih aman via presigned URL
+37. **ASPECT-RATIO-GUIDE.md** — dokumentasi rasio aspek gambar untuk desainer
+
+**Performa:**
+38. **Hero.tsx** — animasi JS (Framer Motion) diganti ke CSS animations + keyframes (commit terakhir)
+39. **page.tsx** — lazy load below-fold components (BentoGallery, ContactSection) via `next/dynamic`
+40. **6 produk pertama** tetap `priority={true}` (tidak lazy-load)
+41. **Semua animasi landing** pakai CSS (bukan JS) — skor Lighthouse lebih tinggi
+
+#### File Baru:
+- `src/components/landing/bento/BentoGallery.tsx` — galeri BentoGrid
+- `src/components/landing/CatalogSkeleton.tsx` — skeleton loading
+- `src/components/admin/MobileNav.tsx` — bottom nav mobile admin
+- `src/app/admin/login/LoginForm.tsx` — form login terpisah
+- `src/lib/image-compression.ts` — kompresi gambar client-side
+- `src/app/api/admin/cleanup-storage/route.ts` — bersihkan file orphan
+- `src/app/api/upload/presign/route.ts` — presigned URL upload
+- `src/app/api/upload/delete/route.ts` — hapus file via API
+- `public/manifest.json` — PWA manifest
+- `public/sw.js` — service worker
+- `public/icons/` — 8 PWA icons
+- `scripts/fix-database-v2.sql` — perbaikan database
+- `scripts/fix-quotes.mjs` — utility script
+- `src/components/landing/ASPECT-RATIO-GUIDE.md` — panduan rasio aspek
+
+#### Status:
+- ✅ Build berhasil (commit terbaru: `3b724d9`)
+- ✅ Landing page: BentoGrid, Hero CSS animation, lazy load below-fold
+- ✅ PWA admin: manifest, service worker, icons, offline caching
+- ✅ SEO: ISR aktif, canonical URL, sitemap dinamis, Suspense
+- ✅ WA 2 nomor + operating hours settings
+- ✅ Social icons inline SVG (lebih cepat)
+- ✅ Admin: mobile bottom nav, logo di header/sidebar/login
+- ✅ Multi-foto per produk + image compression
+- ✅ Presigned URL upload (lebih aman)
+- ✅ Cleanup storage endpoint
+- ✅ API settings logging & validasi
+- ✅ Error handling login lebih informatif
+- ⚠️ Branch `feature/variant-selector` sudah di-merge ke master
+- ⚠️ `feature/variant-selector` branch masih ada di remote (sudah tidak aktif)
+
+---
+
 ## Aturan Sesi Baru
 
 1. **Baca `context.md` ini dulu** — sebelum mulai coding, baca seluruh file ini
@@ -448,6 +558,13 @@
 - Prisma Studio: `npx prisma studio`
 - Build: `npm run build`
 - Seed ulang: `npx tsx prisma/seed.ts`
-- Git branch fitur: `feature/variant-selector`
+- Git branch aktif: `master`
+- Commit terbaru: `3b724d9` — Perbaikan performa: Hero.tsx (CSS animation) + lazy load below-fold
+- Branch fitur sudah di-merge: `feature/variant-selector` (masih ada di remote)
 - Migration file: `prisma/migrations/20260617120024_add_variants/migration.sql`
 - Database switching: `.env` ganti DATABASE_URL + schema.prisma ganti provider (sqlite ↔ postgresql)
+- PWA manifest: `/manifest.json` (scope: `/admin/`)
+- Service worker: `/sw.js`
+- Image compression utility: `src/lib/image-compression.ts`
+- Upload API baru: `POST /api/upload/presign`, `POST /api/upload/delete`
+- Cleanup storage: `POST /api/admin/cleanup-storage`

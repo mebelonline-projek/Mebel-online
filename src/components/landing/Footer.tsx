@@ -71,12 +71,12 @@ export default function Footer({
                   alt={siteName}
                   width={40}
                   height={40}
-                  className="h-10 w-10 rounded-lg object-contain"
+                  className="h-10 w-10 rounded-lg object-contain ring-2 ring-brand-maroon/30 shadow-lg shadow-black/10 transition-transform duration-300 group-hover:scale-105"
                   unoptimized
                 />
               ) : (
-                <div className="w-10 h-10 rounded-lg bg-brand-maroon flex items-center justify-center">
-                  <span className="text-white font-bold">MT</span>
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-maroon to-brand-maroon-dark flex items-center justify-center ring-2 ring-brand-orange/30 shadow-lg shadow-brand-maroon/25 transition-transform duration-300 group-hover:scale-105">
+                  <span className="text-white font-bold tracking-tight">MT</span>
                 </div>
               )}
               <div>
