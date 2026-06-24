@@ -60,12 +60,13 @@ export function BentoCard({
     <motion.div
       initial={reduced ? false : { y: 40, scale: 0.88 }}
       whileInView={reduced ? undefined : { y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-60px" }}
+      viewport={{ once: true, margin: "-30px" }}
       transition={{
         duration: 0.4,
         delay: Math.min(delay, 0.2),
         ease: [0.25, 0.46, 0.45, 0.94],
       }}
+      style={{ willChange: "transform" }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onClick={onClick}

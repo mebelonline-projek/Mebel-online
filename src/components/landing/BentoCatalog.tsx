@@ -321,7 +321,7 @@ function renderProductBentoCard(
   return (
     <BentoCard
       key={product.id}
-      delay={Math.min(index * 0.03, 0.25)}
+      delay={Math.min(index * 0.06, 0.5)}
       prefersReduced={prefersReduced}
       onClick={() => onDetail?.(product)}
       className={cn(
