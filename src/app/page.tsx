@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import { getSupabase } from "@/lib/supabase";
 import { getAllSettings } from "@/lib/site-config";
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
 import BentoCatalog from "@/components/landing/BentoCatalog";
-import AboutSection from "@/components/landing/AboutSection";
-import ContactSection from "@/components/landing/ContactSection";
-import Footer from "@/components/landing/Footer";
-import WhatsAppButton from "@/components/landing/WhatsAppButton";
 import CatalogSkeleton from "@/components/landing/CatalogSkeleton";
+
+const AboutSection = dynamic(() => import("@/components/landing/AboutSection"), { ssr: true });
+const ContactSection = dynamic(() => import("@/components/landing/ContactSection"), { ssr: true });
+const Footer = dynamic(() => import("@/components/landing/Footer"), { ssr: true });
+const WhatsAppButton = dynamic(() => import("@/components/landing/WhatsAppButton"), { ssr: true });
 
 export const revalidate = 60;
 
