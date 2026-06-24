@@ -106,7 +106,7 @@ const scrollCueVariants: Variants = {
     transition: {
       duration: 1.2,
       ease: [0.22, 1, 0.36, 1],
-      delay: 2.2,
+      delay: 1.6,
     },
   },
 };
@@ -118,7 +118,7 @@ const lineVariants: Variants = {
     transition: {
       duration: 1.0,
       ease: [0.22, 1, 0.36, 1],
-      delay: 2.6,
+      delay: 2.0,
     },
   },
 };
@@ -171,7 +171,7 @@ const reducedScrollCueVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { duration: 0.5, ease: "easeOut", delay: 1.2 },
+    transition: { duration: 0.5, ease: "easeOut", delay: 0.8 },
   },
 };
 
@@ -179,7 +179,7 @@ const reducedLineVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { duration: 0.5, ease: "easeOut", delay: 1.5 },
+    transition: { duration: 0.5, ease: "easeOut", delay: 1.1 },
   },
 };
 
