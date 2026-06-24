@@ -60,6 +60,13 @@ const COMPRESS_CONFIG: Record<string, CompressOptions> = {
     folder: "tentang-kami",
     label: "Tentang Kami",
   },
+  logo: {
+    maxWidthOrHeight: 512, // 512×384
+    quality: 0.8,
+    maxSizeMB: 0.05, // 50 KB
+    folder: "settings",
+    label: "Logo (Pengaturan)",
+  },
 } as const;
 
 /** Tipe foto yang didukung */

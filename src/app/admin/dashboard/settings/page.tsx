@@ -205,6 +205,7 @@ export default function SettingsPage() {
               <ImageUploader
                 currentImage={settings.site_logo}
                 onImageUploaded={(url) => setSettings((p) => ({ ...p, site_logo: url }))}
+                tipeFoto="logo"
               />
             </div>
             <div className="space-y-2">
