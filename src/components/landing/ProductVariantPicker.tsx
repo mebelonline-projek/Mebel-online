@@ -38,7 +38,7 @@ export default function ProductVariantPicker({
                     type="button"
                     onClick={() => onChange(group.name, opt.value)}
                     whileTap={{ scale: 0.94 }}
-                    className={`inline-flex items-center gap-1.5 px-2.5 min-h-7 rounded-md text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                    className={`inline-flex items-center gap-1.5 px-2.5 min-h-7 rounded-md text-xs font-medium transition-all duration-200 ${
                        isSelected
                          ? "bg-brand-maroon text-white shadow-sm shadow-brand-maroon/20 ring-2 ring-brand-maroon"
                          : "bg-gray-100 text-gray-600 hover:bg-gray-200 ring-1 ring-gray-300"
@@ -68,7 +68,7 @@ export default function ProductVariantPicker({
                     type="button"
                     onClick={() => onChange(group.name, opt.value)}
                     whileTap={{ scale: 0.94 }}
-                    className={`px-3 min-h-7 rounded-md text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                    className={`px-3 min-h-7 rounded-md text-xs font-medium transition-all duration-200 ${
                        isSelected
                          ? "bg-brand-maroon text-white shadow-sm shadow-brand-maroon/20"
                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
