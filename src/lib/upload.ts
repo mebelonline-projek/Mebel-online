@@ -69,7 +69,8 @@ export async function deleteFromSupabase(url: string): Promise<boolean> {
  */
 export async function uploadToSupabase(
   file: File,
-  folder: string = "general"
+  folder: string = "general",
+  options?: { upsert?: boolean; customFileName?: string }
 ): Promise<UploadResult> {
   const validationError = validateFile(file);
   if (validationError) {
@@ -78,7 +79,9 @@ export async function uploadToSupabase(
 
   const bucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "furniture-images";
   const ext = file.name.split(".").pop() ?? "jpg";
-  const fileName = `${folder}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
+  const fileName =
+    options?.customFileName ??
+    `${folder}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
 
   try {
     const supabase = getSupabase();
@@ -86,7 +89,10 @@ export async function uploadToSupabase(
       .from(bucket)
       .upload(fileName, file, {
         contentType: file.type,
-        upsert: false,
+        upsert: options?.upsert ?? false,
+        // Cache gambar selama 1 tahun di browser & CDN
+        // Karena nama file selalu unik (timestamp+UUID), cache bisa sangat agresif
+        cacheControl: "public, max-age=31536000, immutable",
       });
 
     if (error) {

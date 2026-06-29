@@ -4,6 +4,12 @@ const nextConfig: NextConfig = {
   // Fix: multiple lockfiles warning — tentukan root proyek secara eksplisit
   outputFileTracingRoot: process.cwd(),
   images: {
+    // Custom loader: bypass Vercel Image Optimization untuk gambar Supabase
+    // yang sudah dikompresi ke WebP (hemat kuota Vercel)
+    loader: "custom",
+    loaderFile: "./src/lib/supabase-image-loader.ts",
+    // Cache gambar lebih lama di Vercel CDN (mengurangi permintaan ulang)
+    minimumCacheTTL: 86400, // 1 hari
     remotePatterns: [
       {
         protocol: "https",
