@@ -1,8 +1,9 @@
 /**
  * Upload utility — uploads files to Supabase Storage using Supabase JS SDK.
- * Untuk kompresi client-side + upload, lihat @/lib/image-compression.
+ * Konversi paksa ke WebP di server-side menggunakan sharp.
  */
 import { getSupabase } from "@/lib/supabase";
+import sharp from "sharp";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -61,9 +62,35 @@ export async function deleteFromSupabase(url: string): Promise<boolean> {
 }
 
 /**
- * Upload file ke Supabase Storage menggunakan Supabase JS SDK.
+ * Konversi file ke WebP menggunakan sharp (server-side).
+ * Menjamin 100% output adalah WebP, terlepas dari format input (JPG, PNG, dll).
  *
- * @param file - File yang akan di-upload
+ * @param file - File dari FormData (bisa JPG, PNG, WebP, AVIF)
+ * @returns Buffer WebP + nama file dengan ekstensi .webp
+ */
+async function convertToWebp(file: File): Promise<{ buffer: Buffer; fileName: string }> {
+  const arrayBuffer = await file.arrayBuffer();
+  const inputBuffer = Buffer.from(arrayBuffer);
+
+  const webpBuffer = await sharp(inputBuffer)
+    .webp({ quality: 80 })
+    .toBuffer();
+
+  // Override nama file jadi .webp
+  const webpName = file.name.replace(/\.[^.]+$/, ".webp");
+
+  console.log(
+    `🖼️ [convertToWebp] ${(inputBuffer.length / 1024).toFixed(1)} KB → ${(webpBuffer.length / 1024).toFixed(1)} KB (${file.name})`
+  );
+
+  return { buffer: webpBuffer, fileName: webpName };
+}
+
+/**
+ * Upload file ke Supabase Storage menggunakan Supabase JS SDK.
+ * File akan DIKONVERSI PAKSA ke WebP via sharp sebelum upload.
+ *
+ * @param file - File yang akan di-upload (JPG, PNG, WebP, AVIF — semua dikonversi ke WebP)
  * @param folder - Sub-folder di bucket (default: "general")
  * @returns UploadResult dengan URL publik atau pesan error
  */
@@ -72,27 +99,29 @@ export async function uploadToSupabase(
   folder: string = "general",
   options?: { upsert?: boolean; customFileName?: string }
 ): Promise<UploadResult> {
+  // Validasi awal — gunakan MIME type asli dulu
   const validationError = validateFile(file);
   if (validationError) {
     return { url: "", error: validationError };
   }
 
   const bucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "furniture-images";
-  // Deteksi apakah file ini WebP (setelah kompresi client-side) — pastikan ekstensi cocok dengan isi
-  // Defense-in-depth: cek MIME type DAN nama file (FormData bisa strip MIME type di beberapa environment)
-  const isWebp = file.type === "image/webp" || file.name.endsWith(".webp");
-  const originalExt = file.name.split(".").pop() ?? "jpg";
-  const ext = isWebp ? "webp" : originalExt;
-  const fileName =
-    options?.customFileName ??
-    `${folder}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
 
   try {
+    // ── 1. Konversi paksa ke WebP di server ──
+    const { buffer: webpBuffer } = await convertToWebp(file);
+
+    // ── 2. Generate nama file unik untuk Supabase ──
+    const supabaseFileName =
+      options?.customFileName ??
+      `${folder}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.webp`;
+
+    // ── 3. Upload Buffer ke Supabase Storage ──
     const supabase = getSupabase();
     const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(fileName, file, {
-        contentType: file.type,
+      .upload(supabaseFileName, webpBuffer, {
+        contentType: "image/webp",
         upsert: options?.upsert ?? false,
         // Cache gambar selama 1 tahun di browser & CDN
         // Karena nama file selalu unik (timestamp+UUID), cache bisa sangat agresif
@@ -108,6 +137,7 @@ export async function uploadToSupabase(
       data: { publicUrl },
     } = supabase.storage.from(bucket).getPublicUrl(data.path);
 
+    console.log(`✅ [uploadToSupabase] Uploaded: ${publicUrl}`);
     return { url: publicUrl };
   } catch (error) {
     console.error("Upload error:", error);
