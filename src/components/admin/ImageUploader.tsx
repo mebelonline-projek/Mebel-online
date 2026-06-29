@@ -45,14 +45,23 @@ export default function ImageUploader({
           uploadFolder = hasil.folder;
           // Info kompresi bisa ditambahkan di sini jika diperlukan
         } catch (compressError) {
-          console.warn("Kompresi gagal, upload asli:", compressError);
-          toast.warning("Kompresi gagal, file akan diupload dalam format asli.");
+          console.error("Kompresi gagal:", compressError);
+          toast.error("Gagal mengompres gambar. Silakan coba dengan file lain.");
+          setUploading(false);
+          if (localPreview) URL.revokeObjectURL(localPreview);
+          setLocalPreview(null);
+          return;
         }
       }
 
       // ── Upload ke API (background — preview sudah tampil instan) ──
       const formData = new FormData();
-      formData.append("file", fileToUpload);
+      // Override nama file: pastikan ekstensi .webp jika file hasil kompresi sudah WebP
+      const isWebp = fileToUpload.type === "image/webp";
+      const safeName = isWebp
+        ? fileToUpload.name.replace(/\.[^.]+$/, ".webp")
+        : fileToUpload.name;
+      formData.append("file", fileToUpload, safeName);
       formData.append("folder", uploadFolder);
       if (tipeFoto) formData.append("tipeFoto", tipeFoto);
 

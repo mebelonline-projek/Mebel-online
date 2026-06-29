@@ -79,7 +79,8 @@ export async function uploadToSupabase(
 
   const bucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "furniture-images";
   // Deteksi apakah file ini WebP (setelah kompresi client-side) — pastikan ekstensi cocok dengan isi
-  const isWebp = file.type === "image/webp";
+  // Defense-in-depth: cek MIME type DAN nama file (FormData bisa strip MIME type di beberapa environment)
+  const isWebp = file.type === "image/webp" || file.name.endsWith(".webp");
   const originalExt = file.name.split(".").pop() ?? "jpg";
   const ext = isWebp ? "webp" : originalExt;
   const fileName =

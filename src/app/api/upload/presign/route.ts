@@ -39,7 +39,10 @@ export async function POST(request: Request) {
     }
 
     // Generate nama file unik (sama pola dengan uploadToSupabase)
-    const ext = fileName.split(".").pop() ?? "jpg";
+    // Deteksi WebP dari contentType — pastikan ekstensi cocok dengan isi
+    const isWebp = contentType === "image/webp";
+    const originalExt = fileName.split(".").pop() ?? "jpg";
+    const ext = isWebp ? "webp" : originalExt;
     const filePath = `${folder}/${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 8)}.${ext}`;
