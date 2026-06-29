@@ -692,7 +692,9 @@ export default function ProductsPage() {
                       // Kompres dulu seperti gambar utama, tapi folder ke products/varian
                       const hasil = await kompresFoto(file, "galeri-produk");
                       const formData = new FormData();
-                      formData.append("file", hasil.file);
+                      // Override nama file: paksa ekstensi .webp karena hasil kompresi selalu WebP
+                      const webpName = hasil.file.name.replace(/\.[^.]+$/, ".webp");
+                      formData.append("file", hasil.file, webpName);
                       formData.append("folder", hasil.folder);
                       formData.append("tipeFoto", "galeri-produk");
                       const res = await fetch("/api/upload", { method: "POST", body: formData });
