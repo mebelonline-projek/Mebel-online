@@ -6,7 +6,7 @@ import { getSupabase } from "@/lib/supabase";
 import sharp from "sharp";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB — client mengirim near-lossless resize, server yang kompresi final
 
 export interface UploadResult {
   url: string;
@@ -21,7 +21,7 @@ export function validateFile(file: {
     return "Tipe file tidak didukung. Gunakan JPG, PNG, WebP, atau AVIF.";
   }
   if (file.size > MAX_FILE_SIZE) {
-    return "Ukuran file maksimal 5MB.";
+    return "Ukuran file maksimal 20MB.";
   }
   return null;
 }
@@ -73,7 +73,8 @@ async function convertToWebp(file: File): Promise<{ buffer: Buffer; fileName: st
   const inputBuffer = Buffer.from(arrayBuffer);
 
   const webpBuffer = await sharp(inputBuffer)
-    .webp({ quality: 90 })
+    .resize({ width: 1920, withoutEnlargement: true })
+    .webp({ quality: 85 })
     .toBuffer();
 
   // Override nama file jadi .webp

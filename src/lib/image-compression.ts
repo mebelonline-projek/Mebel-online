@@ -31,39 +31,40 @@ interface CompressOptions {
   label: string;
 }
 
+// Client-side hanya resize gambar — kompresi/konversi WebP ditangani server-side (sharp)
 const COMPRESS_CONFIG: Record<string, CompressOptions> = {
   hero: {
-    maxWidthOrHeight: 1600, // 1600×1200 (4:3)
-    quality: 0.85,
-    maxSizeMB: 0.5, // 500 KB
+    maxWidthOrHeight: 1600,
+    quality: 1.0, // no lossy — serahkan ke sharp
+    maxSizeMB: 50, // effectively disable size-based compression
     folder: "hero",
     label: "Hero (Halaman Utama)",
   },
   produk: {
-    maxWidthOrHeight: 800, // 800×600 (4:3)
-    quality: 0.85,
-    maxSizeMB: 0.15, // 150 KB
+    maxWidthOrHeight: 800,
+    quality: 1.0,
+    maxSizeMB: 50,
     folder: "products",
     label: "Produk (Katalog)",
   },
   "galeri-produk": {
-    maxWidthOrHeight: 800, // 800×600 (4:3) — sama dengan produk
-    quality: 0.85,
-    maxSizeMB: 0.15, // 150 KB
+    maxWidthOrHeight: 800,
+    quality: 1.0,
+    maxSizeMB: 50,
     folder: "products/variants",
     label: "Galeri Produk",
   },
   "tentang-kami": {
-    maxWidthOrHeight: 1024, // 1024×768 (4:3)
-    quality: 0.85,
-    maxSizeMB: 0.25, // 250 KB
+    maxWidthOrHeight: 1024,
+    quality: 1.0,
+    maxSizeMB: 50,
     folder: "tentang-kami",
     label: "Tentang Kami",
   },
   logo: {
-    maxWidthOrHeight: 512, // 512×384
-    quality: 0.85,
-    maxSizeMB: 0.12, // 120 KB
+    maxWidthOrHeight: 512,
+    quality: 1.0,
+    maxSizeMB: 50,
     folder: "settings",
     label: "Logo (Pengaturan)",
   },
@@ -124,7 +125,8 @@ export async function kompresFoto(
       maxSizeMB: config.maxSizeMB,
       maxWidthOrHeight: config.maxWidthOrHeight,
       useWebWorker: true, // biar tidak nge-block UI thread
-      fileType: "image/webp", // konversi paksa ke WebP
+      // Jangan set fileType — pertahankan format asli (JPG/PNG).
+      // Konversi ke WebP ditangani server-side oleh sharp.
       initialQuality: config.quality,
       alwaysKeepResolution: false,
     });
@@ -144,7 +146,6 @@ export async function kompresFoto(
       maxSizeMB: config.maxSizeMB,
       maxWidthOrHeight: Math.round(config.maxWidthOrHeight * 0.9),
       useWebWorker: true,
-      fileType: "image/webp",
       initialQuality: Math.max(config.quality - 0.1, 0.3),
       alwaysKeepResolution: false,
     });
