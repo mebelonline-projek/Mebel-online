@@ -78,7 +78,10 @@ export async function uploadToSupabase(
   }
 
   const bucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "furniture-images";
-  const ext = file.name.split(".").pop() ?? "jpg";
+  // Deteksi apakah file ini WebP (setelah kompresi client-side) — pastikan ekstensi cocok dengan isi
+  const isWebp = file.type === "image/webp";
+  const originalExt = file.name.split(".").pop() ?? "jpg";
+  const ext = isWebp ? "webp" : originalExt;
   const fileName =
     options?.customFileName ??
     `${folder}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
