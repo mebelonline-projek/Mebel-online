@@ -34,36 +34,36 @@ interface CompressOptions {
 const COMPRESS_CONFIG: Record<string, CompressOptions> = {
   hero: {
     maxWidthOrHeight: 1600, // 1600×1200 (4:3)
-    quality: 0.8,
-    maxSizeMB: 0.35, // 350 KB
+    quality: 0.85,
+    maxSizeMB: 0.5, // 500 KB
     folder: "hero",
     label: "Hero (Halaman Utama)",
   },
   produk: {
     maxWidthOrHeight: 800, // 800×600 (4:3)
-    quality: 0.75,
-    maxSizeMB: 0.09, // 90 KB
+    quality: 0.85,
+    maxSizeMB: 0.15, // 150 KB
     folder: "products",
     label: "Produk (Katalog)",
   },
   "galeri-produk": {
     maxWidthOrHeight: 800, // 800×600 (4:3) — sama dengan produk
-    quality: 0.75,
-    maxSizeMB: 0.09, // 90 KB
+    quality: 0.85,
+    maxSizeMB: 0.15, // 150 KB
     folder: "products/variants",
     label: "Galeri Produk",
   },
   "tentang-kami": {
     maxWidthOrHeight: 1024, // 1024×768 (4:3)
-    quality: 0.75,
-    maxSizeMB: 0.18, // 180 KB
+    quality: 0.85,
+    maxSizeMB: 0.25, // 250 KB
     folder: "tentang-kami",
     label: "Tentang Kami",
   },
   logo: {
     maxWidthOrHeight: 512, // 512×384
-    quality: 0.8,
-    maxSizeMB: 0.05, // 50 KB
+    quality: 0.85,
+    maxSizeMB: 0.12, // 120 KB
     folder: "settings",
     label: "Logo (Pengaturan)",
   },

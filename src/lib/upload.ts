@@ -73,7 +73,7 @@ async function convertToWebp(file: File): Promise<{ buffer: Buffer; fileName: st
   const inputBuffer = Buffer.from(arrayBuffer);
 
   const webpBuffer = await sharp(inputBuffer)
-    .webp({ quality: 80 })
+    .webp({ quality: 90 })
     .toBuffer();
 
   // Override nama file jadi .webp
