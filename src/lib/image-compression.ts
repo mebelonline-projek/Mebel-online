@@ -31,40 +31,41 @@ interface CompressOptions {
   label: string;
 }
 
-// Client-side hanya resize gambar — kompresi/konversi WebP ditangani server-side (sharp)
+// Client-side: resize + light compression (quality 0.92 = near-lossless).
+// Konversi ke WebP ditangani server-side oleh sharp.
 const COMPRESS_CONFIG: Record<string, CompressOptions> = {
   hero: {
     maxWidthOrHeight: 1600,
-    quality: 1.0, // no lossy — serahkan ke sharp
-    maxSizeMB: 50, // effectively disable size-based compression
+    quality: 0.92, // near-lossless — file kecil tapi tetap tajam
+    maxSizeMB: 1.5, // safety net agar upload tidak terlalu berat
     folder: "hero",
     label: "Hero (Halaman Utama)",
   },
   produk: {
     maxWidthOrHeight: 800,
-    quality: 1.0,
-    maxSizeMB: 50,
+    quality: 0.92,
+    maxSizeMB: 1.5,
     folder: "products",
     label: "Produk (Katalog)",
   },
   "galeri-produk": {
     maxWidthOrHeight: 800,
-    quality: 1.0,
-    maxSizeMB: 50,
+    quality: 0.92,
+    maxSizeMB: 1.5,
     folder: "products/variants",
     label: "Galeri Produk",
   },
   "tentang-kami": {
     maxWidthOrHeight: 1024,
-    quality: 1.0,
-    maxSizeMB: 50,
+    quality: 0.92,
+    maxSizeMB: 1.5,
     folder: "tentang-kami",
     label: "Tentang Kami",
   },
   logo: {
     maxWidthOrHeight: 512,
-    quality: 1.0,
-    maxSizeMB: 50,
+    quality: 0.92,
+    maxSizeMB: 1.5,
     folder: "settings",
     label: "Logo (Pengaturan)",
   },
