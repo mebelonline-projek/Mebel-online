@@ -1,18 +1,15 @@
 /**
- * Batch Re-compress Images — Script untuk mengompres ulang gambar yang sudah ada.
+ * Batch Re-compress Images — Scan semua file di bucket Supabase dan kompres yang belum optimal.
  *
  * ## Cara Kerja
- * 1. Ambil semua URL gambar dari database (produk, site_config)
- * 2. Download dari Supabase Storage
- * 3. Kompres ke WebP pakai sharp
- * 4. Upload ulang dengan nama file SAMA (upsert) → URL di database TIDAK BERUBAH
+ * 1. List SEMUA file di semua folder dalam bucket Supabase Storage
+ * 2. Download, cek format & ukuran
+ * 3. Skip jika: sudah WebP + ukuran di bawah threshold
+ * 4. Kompres ke WebP pakai sharp jika: JPEG/PNG/besar
+ * 5. Upload ulang dengan nama file SAMA (upsert) → URL tidak berubah
  *
  * ## Cara Menjalankan
  *   node scripts/recompress-images.mjs
- *
- * ## Prasyarat
- *   - File .env.local / .env harus berisi NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_KEY
- *   - sharp harus terinstall (`npm install sharp`)
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -38,8 +35,10 @@ function loadEnv() {
         if (eqIdx === -1) continue;
         const key = trimmed.slice(0, eqIdx).trim();
         let value = trimmed.slice(eqIdx + 1).trim();
-        // Hapus quotes
-        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        if (
+          (value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))
+        ) {
           value = value.slice(1, -1);
         }
         if (!process.env[key]) {
@@ -54,103 +53,121 @@ loadEnv();
 // ── Validasi env ───────────────────────────────────────────────────────
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_KEY;
-const bucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "furniture-images";
+const bucket =
+  process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "furniture-images";
 
 if (!supabaseUrl || !serviceKey) {
-  console.error("❌ ERROR: NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_KEY harus di-set di .env.local");
+  console.error(
+    "❌ ERROR: NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_KEY harus di-set di .env.local"
+  );
   process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, serviceKey);
 
-// ── Konfigurasi Kompresi per Tipe ──────────────────────────────────────
+// ── Konfigurasi Kompresi per Folder ────────────────────────────────────
 const COMPRESS_CONFIG = {
+  products: { maxWidth: 800, maxHeight: 600, quality: 75 },
+  variants: { maxWidth: 800, maxHeight: 600, quality: 75 },
   hero: { maxWidth: 1600, maxHeight: 1200, quality: 80 },
-  produk: { maxWidth: 800, maxHeight: 600, quality: 75 },
   "tentang-kami": { maxWidth: 1024, maxHeight: 768, quality: 75 },
+  settings: { maxWidth: 512, maxHeight: 384, quality: 80 },
   logo: { maxWidth: 512, maxHeight: 384, quality: 80 },
   general: { maxWidth: 1200, maxHeight: 900, quality: 75 },
 };
 
-// ── Threshold Skip ────────────────────────────────────────────────────
-// Gambar yang sudah WebP dan ukuran di bawah threshold TIDAK akan dikompres ulang.
-// Ini melindungi 70% gambar yang sudah optimal dari client-side compression.
+// ── Threshold Skip ─────────────────────────────────────────────────────
+// Gambar WebP di bawah threshold TIDAK akan dikompres ulang
 const COMPRESS_THRESHOLD = {
-  hero: 350 * 1024 * 1.5,         // 525 KB
-  produk: 90 * 1024 * 1.5,        // 135 KB
-  "tentang-kami": 180 * 1024 * 1.5, // 270 KB
-  logo: 50 * 1024 * 1.5,          // 75 KB
-  general: 500 * 1024,             // 500 KB
+  products: 135 * 1024, // 135 KB
+  variants: 135 * 1024,
+  hero: 525 * 1024, // 525 KB
+  "tentang-kami": 270 * 1024, // 270 KB
+  settings: 75 * 1024, // 75 KB
+  logo: 75 * 1024,
+  general: 500 * 1024,
+};
+
+// ── Statistik ──────────────────────────────────────────────────────────
+const stats = {
+  total: 0,
+  success: 0,
+  skipped: 0,
+  failed: 0,
+  bytesBefore: 0,
+  bytesAfter: 0,
 };
 
 /**
- * Deteksi tipe gambar berdasarkan path folder di Supabase Storage URL.
+ * Cek apakah gambar sudah optimal → tidak perlu dikompres ulang.
  */
-function detectType(url) {
-  if (!url) return "general";
-  if (url.includes("/hero/")) return "hero";
-  if (url.includes("/products/") || url.includes("/variants/")) return "produk";
-  if (url.includes("/tentang-kami/")) return "tentang-kami";
-  if (url.includes("/settings/")) return "logo";
-  return "general";
-}
-
-/**
- * Cek apakah gambar sudah optimal (WebP + ukuran kecil) → tidak perlu dikompres ulang.
- * Melindungi 70% gambar yang sudah bagus dari client-side compression.
- */
-function shouldSkip(buffer, path, type) {
-  const threshold = COMPRESS_THRESHOLD[type] || COMPRESS_THRESHOLD.general;
-  const isWebp = path.toLowerCase().endsWith(".webp");
+function shouldSkip(buffer, filePath, folder) {
+  const threshold = COMPRESS_THRESHOLD[folder] || COMPRESS_THRESHOLD.general;
+  const isWebp = filePath.toLowerCase().endsWith(".webp");
   return isWebp && buffer.length <= threshold;
 }
 
-// ── Statistik ───────────────────────────────────────────────────────────
-const stats = { total: 0, success: 0, skipped: 0, failed: 0, bytesBefore: 0, bytesAfter: 0 };
-
 /**
- * Ekstrak path dari Supabase public URL.
- * Input:  https://xxx.supabase.co/storage/v1/object/public/bucket/hero/file.webp
- * Output: hero/file.webp
+ * List semua file di bucket secara rekursif.
  */
-function extractPath(url) {
-  const publicPrefix = `${supabaseUrl}/storage/v1/object/public/`;
-  if (!url.startsWith(publicPrefix)) return null;
-  const objectPath = url.slice(publicPrefix.length);
-  const parts = objectPath.split("/");
-  // Remove bucket name (first part)
-  return parts.slice(1).join("/");
+async function listAllFiles() {
+  const { data: rootItems, error: rootErr } = await supabase.storage
+    .from(bucket)
+    .list();
+
+  if (rootErr) {
+    console.error("❌ Gagal list root bucket:", rootErr.message);
+    return [];
+  }
+
+  const allFiles = [];
+
+  for (const item of rootItems) {
+    if (item.id === null) {
+      // Ini folder
+      const { data: folderItems, error: folderErr } = await supabase.storage
+        .from(bucket)
+        .list(item.name, { limit: 1000 });
+
+      if (folderErr) {
+        console.warn(`⚠️  Gagal list folder ${item.name}:`, folderErr.message);
+        continue;
+      }
+
+      for (const f of folderItems) {
+        // Skip placeholder & folder dalam folder
+        if (f.name.startsWith(".")) continue;
+        if (f.id === null) continue;
+        allFiles.push(`${item.name}/${f.name}`);
+      }
+    } else {
+      // File di root
+      if (!item.name.startsWith(".")) {
+        allFiles.push(item.name);
+      }
+    }
+  }
+
+  return allFiles;
 }
 
 /**
  * Download gambar dari Supabase sebagai buffer.
  */
-async function downloadImage(url) {
-  const path = extractPath(url);
-  if (!path) {
-    console.warn(`  ⚠️ Bukan URL Supabase, skip: ${url.slice(0, 60)}...`);
-    return null;
-  }
-
-  const { data, error } = await supabase.storage.from(bucket).download(path);
+async function downloadFile(filePath) {
+  const { data, error } = await supabase.storage.from(bucket).download(filePath);
   if (error) {
-    console.error(`  ❌ Gagal download ${path}: ${error.message}`);
+    console.error(`  ❌ Gagal download ${filePath}: ${error.message}`);
     return null;
   }
-
-  return { buffer: Buffer.from(await data.arrayBuffer()), path };
+  return Buffer.from(await data.arrayBuffer());
 }
 
 /**
- * Kompres gambar dengan sharp.
- *
- * PENTING: Nama file TIDAK diubah (tidak rename ke .webp).
- * Ini memastikan URL di database tetap sama setelah upsert.
- * Browser tetap bisa render karena mendeteksi format dari magic bytes,
- * bukan dari ekstensi file.
+ * Kompres gambar dengan sharp → WebP.
  */
-async function compressImage(buffer, path, type) {
-  const config = COMPRESS_CONFIG[type] || COMPRESS_CONFIG.general;
+async function compressImage(buffer, folder) {
+  const config = COMPRESS_CONFIG[folder] || COMPRESS_CONFIG.general;
 
   try {
     const result = await sharp(buffer)
@@ -161,10 +178,9 @@ async function compressImage(buffer, path, type) {
       .webp({ quality: config.quality })
       .toBuffer();
 
-    // JANGAN ubah ekstensi — pakai nama file persis sama (URL di DB tidak berubah)
-    return { buffer: result, path };
+    return result;
   } catch (err) {
-    console.error(`  ❌ Gagal kompres ${path}: ${err.message}`);
+    console.error(`  ❌ Gagal kompres: ${err.message}`);
     return null;
   }
 }
@@ -172,138 +188,85 @@ async function compressImage(buffer, path, type) {
 /**
  * Upload ulang dengan upsert (timpa file lama).
  */
-async function uploadImage(buffer, path) {
-  const { error } = await supabase.storage.from(bucket).upload(path, buffer, {
+async function uploadFile(filePath, buffer) {
+  const { error } = await supabase.storage.from(bucket).upload(filePath, buffer, {
     contentType: "image/webp",
     upsert: true,
     cacheControl: "public, max-age=31536000, immutable",
   });
 
   if (error) {
-    console.error(`  ❌ Gagal upload ${path}: ${error.message}`);
+    console.error(`  ❌ Gagal upload ${filePath}: ${error.message}`);
     return false;
   }
   return true;
 }
 
-// ── Koleksi URL dari Database ──────────────────────────────────────────
-
-async function collectUrls() {
-  const urls = new Map(); // url → { type, source }
-
-  console.log("📊 Mengumpulkan URL gambar dari database...\n");
-
-  // 1. SiteConfig — site_logo, hero_image, about_image
-  const { data: siteConfigs, error: scErr } = await supabase
-    .from("SiteConfig")
-    .select("key, value");
-  if (scErr) {
-    console.error("❌ Gagal ambil SiteConfig:", scErr.message);
-  } else {
-    const imageFields = ["site_logo", "hero_image", "about_image"];
-    for (const row of siteConfigs) {
-      if (imageFields.includes(row.key) && row.value && row.value.includes("supabase.co")) {
-        const type = row.key === "site_logo" ? "logo" : row.key === "hero_image" ? "hero" : "tentang-kami";
-        if (!urls.has(row.value)) {
-          urls.set(row.value, { type, source: `SiteConfig.${row.key}` });
-        }
-      }
-    }
-  }
-
-  // 2. Products — image + images[]
-  const { data: products, error: prodErr } = await supabase
-    .from("Product")
-    .select("id, name, image, images");
-  if (prodErr) {
-    console.error("❌ Gagal ambil Product:", prodErr.message);
-  } else {
-    for (const p of products) {
-      if (p.image && p.image.includes("supabase.co") && !urls.has(p.image)) {
-        urls.set(p.image, { type: "produk", source: `Product(${p.name}).image` });
-      }
-      if (Array.isArray(p.images)) {
-        for (const img of p.images) {
-          if (img && img.includes("supabase.co") && !urls.has(img)) {
-            urls.set(img, { type: "produk", source: `Product(${p.name}).images[]` });
-          }
-        }
-      }
-    }
-  }
-
-  // 3. Categories — image
-  const { data: categories, error: catErr } = await supabase
-    .from("Category")
-    .select("id, name, image");
-  if (catErr) {
-    console.error("❌ Gagal ambil Category:", catErr.message);
-  } else {
-    for (const c of categories) {
-      if (c.image && c.image.includes("supabase.co") && !urls.has(c.image)) {
-        urls.set(c.image, { type: "general", source: `Category(${c.name}).image` });
-      }
-    }
-  }
-
-  return urls;
-}
-
-// ── Main ────────────────────────────────────────────────────────────────
+// ── Main ───────────────────────────────────────────────────────────────
 
 async function main() {
   console.log("🔄 Batch Re-compress Images — Mulai...\n");
   console.log(`   Bucket: ${bucket}`);
   console.log(`   Supabase: ${supabaseUrl}\n`);
 
-  const urls = await collectUrls();
-  console.log(`📸 Ditemukan ${urls.size} URL gambar unik.\n`);
+  console.log("📊 Scan semua file di bucket (rekursif)...\n");
+  const allFiles = await listAllFiles();
 
-  stats.total = urls.size;
+  // Filter hanya file gambar
+  const imageExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"];
+  const imageFiles = allFiles.filter((f) => {
+    const lower = f.toLowerCase();
+    return imageExtensions.some((ext) => lower.endsWith(ext));
+  });
 
-  let i = 0;
-  for (const [url, info] of urls) {
-    i++;
-    const progress = `[${i}/${urls.size}]`;
-    console.log(`${progress} ${info.source}`);
-    console.log(`       URL: ${url.slice(0, 80)}...`);
+  console.log(`📸 Ditemukan ${imageFiles.length} file gambar dari ${allFiles.length} total file.\n`);
+  stats.total = imageFiles.length;
+
+  for (let i = 0; i < imageFiles.length; i++) {
+    const filePath = imageFiles[i];
+    const progress = `[${i + 1}/${imageFiles.length}]`;
+    const folder = filePath.split("/")[0] || "general";
+
+    console.log(`${progress} ${filePath}`);
+    console.log(`       Folder: ${folder}`);
 
     // Download
-    const downloaded = await downloadImage(url);
-    if (!downloaded) {
+    const buffer = await downloadFile(filePath);
+    if (!buffer) {
       stats.failed++;
       continue;
     }
 
-    stats.bytesBefore += downloaded.buffer.length;
+    const sizeKB = (buffer.length / 1024).toFixed(2);
+    console.log(`       Ukuran: ${sizeKB} KB | Format: ${filePath.split(".").pop()?.toLowerCase()}`);
 
-    // Deteksi tipe berdasarkan folder path
-    const detectedType = detectType(url);
-    const type = info.type !== "general" ? info.type : detectedType;
-    console.log(`       Tipe: ${type} | Ukuran asli: ${(downloaded.buffer.length / 1024).toFixed(2)} KB`);
+    stats.bytesBefore += buffer.length;
 
-    // Skip gambar yang sudah optimal (WebP + ukuran kecil)
-    if (shouldSkip(downloaded.buffer, downloaded.path, type)) {
+    // Skip gambar yang sudah optimal
+    if (shouldSkip(buffer, filePath, folder)) {
       stats.skipped++;
       console.log(`       ⏭️  Lewati: sudah WebP + ukuran di bawah threshold\n`);
       continue;
     }
 
     // Kompres
-    const compressed = await compressImage(downloaded.buffer, downloaded.path, type);
+    const compressed = await compressImage(buffer, folder);
     if (!compressed) {
       stats.failed++;
       continue;
     }
 
-    stats.bytesAfter += compressed.buffer.length;
-    const savings = downloaded.buffer.length > 0
-      ? ((1 - compressed.buffer.length / downloaded.buffer.length) * 100).toFixed(1)
-      : "0.0";
-    console.log(`       Hasil kompresi: ${(compressed.buffer.length / 1024).toFixed(2)} KB (hemat ${savings}%)`);
+    stats.bytesAfter += compressed.length;
+    const savings =
+      buffer.length > 0
+        ? ((1 - compressed.length / buffer.length) * 100).toFixed(1)
+        : "0.0";
+    console.log(
+      `       Hasil: ${(compressed.length / 1024).toFixed(2)} KB (hemat ${savings}%)`
+    );
 
     // Upload upsert
-    const uploaded = await uploadImage(compressed.buffer, compressed.path);
+    const uploaded = await uploadFile(filePath, compressed);
     if (!uploaded) {
       stats.failed++;
       continue;
@@ -312,34 +275,44 @@ async function main() {
     stats.success++;
     console.log(`       ✅ Upload berhasil (upsert)\n`);
 
-    // Jeda kecil antar request (rate limiting)
+    // Jeda 200ms antar request
     await new Promise((r) => setTimeout(r, 200));
   }
 
   // ── Ringkasan ────────────────────────────────────────────────────────
   console.log("\n════════════════════════════════════════════════════════");
-  console.log("📊 RINGKASAN");
+  console.log("📊 RINGKASAN AKHIR");
   console.log("════════════════════════════════════════════════════════");
-  console.log(`   Total URL:     ${stats.total}`);
-  console.log(`   Berhasil:      ${stats.success}`);
-  console.log(`   Gagal:         ${stats.failed}`);
-  console.log(`   Skip:          ${stats.skipped}`);
-  console.log(`   Ukuran sebelum: ${(stats.bytesBefore / 1024 / 1024).toFixed(2)} MB`);
-  console.log(`   Ukuran setelah: ${(stats.bytesAfter / 1024 / 1024).toFixed(2)} MB`);
-  const totalSavings = stats.bytesBefore > 0
-    ? ((1 - stats.bytesAfter / stats.bytesBefore) * 100).toFixed(1)
-    : "0.0";
-  console.log(`   Total hemat:    ${totalSavings}%`);
+  console.log(`   Total file gambar: ${stats.total}`);
+  console.log(`   ✅ Dikompres:      ${stats.success}`);
+  console.log(`   ⏭️  Dilewati:       ${stats.skipped}`);
+  console.log(`   ❌ Gagal:          ${stats.failed}`);
+  console.log(
+    `   Ukuran sebelum:    ${(stats.bytesBefore / 1024 / 1024).toFixed(2)} MB`
+  );
+  console.log(
+    `   Ukuran setelah:    ${(stats.bytesAfter / 1024 / 1024).toFixed(2)} MB`
+  );
+  const totalSavings =
+    stats.bytesBefore > 0
+      ? ((1 - stats.bytesAfter / stats.bytesBefore) * 100).toFixed(1)
+      : "0.0";
+  console.log(`   Total hemat:       ${totalSavings}%`);
   console.log("════════════════════════════════════════════════════════\n");
 
   if (stats.failed > 0) {
-    console.log("⚠️  Beberapa gambar gagal diproses. Periksa log di atas.\n");
-    process.exit(1);
+    console.log(`⚠️  ${stats.failed} gambar gagal diproses. Periksa log di atas.\n`);
   }
 
-  console.log("✅ Selesai! Semua gambar berhasil dikompres ulang.\n");
-  console.log("💡 Tips: Karena pakai upsert (nama file sama), URL di database TIDAK berubah.");
-  console.log("   Tidak perlu update database. Cukup deploy ulang agar CDN cache refresh.\n");
+  if (stats.success > 0) {
+    console.log(
+      `✅ Selesai! ${stats.success} gambar berhasil dikompres ulang.\n`
+    );
+  }
+
+  console.log(
+    "💡 URL di database tidak berubah karena pakai upsert dengan nama file sama."
+  );
 }
 
 main().catch((err) => {
