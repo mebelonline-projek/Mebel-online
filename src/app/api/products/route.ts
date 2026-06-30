@@ -166,6 +166,47 @@ export async function POST(request: Request) {
       );
     }
 
+    // ── Auto-renumber semua produk setelah insert ──
+    // Ambil semua produk, urutkan: sortOrder ASC lalu createdAt DESC (tiebreak)
+    const { data: allProducts, error: renumberFindError } = await supabase
+      .from("Product")
+      .select("id, sortOrder, createdAt")
+      .order("sortOrder", { ascending: true })
+      .order("createdAt", { ascending: false });
+
+    if (renumberFindError) {
+      console.error("Renumber find error:", renumberFindError);
+      // Tetap return produk walau renumber gagal
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            ...product,
+            images: product.images ? JSON.parse(product.images) : [],
+            variants: product.variants ? JSON.parse(product.variants) : [],
+          },
+        },
+        { status: 201 }
+      );
+    }
+
+    // Update sortOrder berurutan 1, 2, 3, ...
+    let newSortOrder = 1;
+    for (const p of allProducts) {
+      const { error: updateError } = await supabase
+        .from("Product")
+        .update({ sortOrder: newSortOrder })
+        .eq("id", p.id);
+      if (updateError) {
+        console.error("Renumber update error for", p.id, ":", updateError);
+      }
+      // Catat sortOrder yang baru untuk produk yang baru saja di-insert
+      if (p.id === product.id) {
+        product.sortOrder = newSortOrder;
+      }
+      newSortOrder++;
+    }
+
     return NextResponse.json(
       {
         success: true,
