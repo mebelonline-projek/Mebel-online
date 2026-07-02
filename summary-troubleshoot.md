@@ -78,18 +78,26 @@ git push origin master
 
 ### Environment Variables
 
-**Via `[vars]` di wrangler.toml (non-secret):**
+**Semua variable di-set via Cloudflare Dashboard → Build Settings → Variables and secrets:**
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET`
 - `RESEND_FROM_EMAIL`
+- `RESEND_API_KEY`
+- `SUPABASE_SERVICE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `AUTH_SECRET`
+- `AUTH_URL`
 
-**Via `.dev.vars` (secret, auto-loaded saat deploy):**
+**`.dev.vars` (hanya untuk local dev `wrangler dev`):**
 - `SUPABASE_SERVICE_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `AUTH_SECRET`
 - `AUTH_URL`
 - `RESEND_API_KEY`
+
+> **PENTING:** Jangan gunakan `[vars]` di `wrangler.toml` karena akan membuat duplikasi
+> di Worker Settings → Variables and secrets (tampil 2 halaman di Dashboard).
 
 ---
 
