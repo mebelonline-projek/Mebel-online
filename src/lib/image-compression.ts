@@ -5,10 +5,47 @@
  * Menggunakan Canvas API native browser untuk resize + konversi WebP
  * sebelum di-upload, agar menghemat bandwidth pengguna dan efisiensi penyimpanan.
  *
- * MIGRASI CLOUDFLARE: browser-image-compression diganti dengan Canvas API native
- * karena library tersebut tidak bisa menghasilkan WebP secara deterministik
- * (quality iteratif, bisa anjlok ke 0.3). Canvas API memberikan kontrol penuh
- * atas format output (WebP) dan quality (deterministik).
+ * ─────────────────────────────────────────────────────────────────────────────
+ * DECISION LOG — Mengapa Canvas API?
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * [2026-06-16] Vercel + sharp
+ *   - sharp (Node.js native addon) digunakan untuk konversi WebP + kompresi
+ *   - Hasil: 4MB JPEG → ~80KB WebP, kualitas bagus
+ *   - Masalah: sharp tidak kompatibel dengan Cloudflare Workers (native addon)
+ *
+ * [2026-07-01] Migrasi ke Cloudflare — hapus sharp
+ *   - Cloudflare Workers tidak mendukung native Node.js addons
+ *   - sharp dihapus, konversi WebP "direncanakan" pakai Supabase Image Transformation
+ *   - Implementasi: browser-image-compression (resize only, keep format asli)
+ *   - Hasil: ukuran kecil tapi format TIDAK berubah ke WebP
+ *
+ * [2026-07-02] Evaluasi browser-image-compression untuk WebP
+ *   - Library mendukung `fileType: 'image/webp'` tapi TIDAK deterministik
+ *   - Parameter `initialQuality` bersifat ITERATIF:
+ *     * Mulai dari 0.92, tapi bisa turun ke 0.7, 0.5, bahkan 0.3
+ *     * Tergantung ukuran file asli vs target maxSizeMB
+ *   - Hasil: gambar bisa buram secara tidak terduga
+ *   - Kesimpulan: TIDAK cocok untuk use case yang butuh kualitas konsisten
+ *
+ * [2026-07-02] Evaluasi Supabase Image Transformation
+ *   - Fitur on-the-fly WebP conversion via URL parameter (?format=webp)
+ *   - Masalah: HANYA tersedia di Supabase Pro plan ($25/bulan)
+ *   - Project menggunakan Supabase FREE tier
+ *   - Kesimpulan: TIDAK feasible tanpa biaya tambahan
+ *
+ * [2026-07-02] KEPUTUSAN FINAL: Canvas API Native Browser
+ *   - Canvas API (`canvas.toBlob('image/webp', quality)`) adalah API browser native
+ *   - Kelebihan:
+ *     * Output WebP DETERMINISTIK — quality 0.85 = 0.85, tidak iteratif
+ *     * Zero dependensi — tidak butuh library eksternal
+ *     * Zero biaya — semua diproses di browser user
+ *     * Kontrol penuh — kita yang handle resize + konversi
+ *   - Trade-off:
+ *     * ~20 baris kode lebih banyak dari library
+ *     * Bergantung pada browser support (semua browser modern support WebP)
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
  *
  * Fungsi ini hanya melakukan kompresi — upload tetap melalui API route
  * (/api/upload) yang sudah diproteksi requireAdmin() dan menggunakan
