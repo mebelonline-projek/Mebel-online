@@ -5,9 +5,9 @@ import { requireAdmin } from "@/lib/api-auth";
 /**
  * POST /api/upload
  *
- * Menerima file yang SUDAH dikompres dari client-side.
+ * Menerima file WebP yang SUDAH dikompres dari client-side (Canvas API).
  * Parameter:
- *   - file: File (wajib)
+ *   - file: File (wajib, format WebP hasil konversi client-side)
  *   - folder: string (opsional, default "general")
  *   - tipeFoto: string (opsional, untuk keperluan logging/kategorisasi)
  *

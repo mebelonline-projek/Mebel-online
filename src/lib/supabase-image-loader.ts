@@ -5,6 +5,9 @@
  * loader ini cukup return URL mentah tanpa transformasi.
  * Gambar dari Supabase Storage langsung di-serve oleh CDN Supabase.
  *
+ * Konversi ke WebP sudah dilakukan di client-side (Canvas API) sebelum upload.
+ * File yang tersimpan di Supabase Storage sudah dalam format WebP.
+ *
  * @see next.config.ts — loader diarahkan ke file ini, unoptimized: true
  */
 
@@ -16,6 +19,6 @@ export default function supabaseImageLoader({
   quality?: number;
 }): string {
   // Return URL apa adanya — tidak ada transformasi
-  // unoptimized: true di next.config.ts membuat Next.js tidak memproses ulang
+  // File sudah WebP dari client-side, jadi tidak perlu konversi lagi
   return src;
 }

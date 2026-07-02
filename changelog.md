@@ -87,4 +87,3 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 - Bug fix
 
 ### Security
-- Perbaikan keamanan

@@ -9,9 +9,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
 
   images: {
-    // Custom loader: Supabase Image Transformation
-    // Gambar dari Supabase dikonversi ke WebP on-the-fly via URL transformation
-    // (menggantikan sharp yang tidak kompatibel dengan Cloudflare Workers)
+    // Custom loader: passthrough (no transformation).
+    // Konversi ke WebP sudah dilakukan di client-side (Canvas API) sebelum upload.
+    // File yang tersimpan di Supabase Storage sudah dalam format WebP.
     loader: "custom",
     loaderFile: "./src/lib/supabase-image-loader.ts",
     // Cache gambar lebih lama di CDN (mengurangi permintaan ulang)

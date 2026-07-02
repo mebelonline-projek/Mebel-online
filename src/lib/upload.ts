@@ -2,13 +2,12 @@
  * Upload utility — uploads files to Supabase Storage using Supabase JS SDK.
  *
  * MIGRASI CLOUDFLARE: sharp dihapus karena tidak kompatibel dengan Cloudflare Workers.
- * Konversi ke WebP sekarang ditangani oleh Supabase Image Transformation (on-the-fly)
- * saat gambar ditampilkan via URL parameter (?format=webp&quality=85).
+ * Konversi ke WebP sekarang ditangani oleh Canvas API di client-side (browser)
+ * sebelum file di-upload. Lihat src/lib/image-compression.ts.
  *
- * Flow baru:
- *   [Client] browser-image-compression (resize only, keep format asli)
- *   → [Server] upload langsung ke Supabase Storage (NO sharp)
- *   → [Image Loader] generate URL dengan transformasi Supabase (?format=webp&quality=85)
+ * Flow:
+ *   [Client] Canvas API (resize + konversi ke WebP, quality 0.85 deterministik)
+ *   → [Server] upload file WebP langsung ke Supabase Storage
  *   → [Browser] terima gambar WebP dari CDN Supabase
  */
 import { getSupabase } from "@/lib/supabase";
@@ -72,11 +71,10 @@ export async function deleteFromSupabase(url: string): Promise<boolean> {
 /**
  * Upload file ke Supabase Storage menggunakan Supabase JS SDK.
  *
- * MIGRASI CLOUDFLARE: Tidak ada lagi konversi WebP di server (sharp dihapus).
- * File di-upload apa adanya (format asli dari client). Konversi ke WebP
- * ditangani oleh Supabase Image Transformation saat gambar ditampilkan.
+ * MIGRASI CLOUDFLARE: File yang di-upload sudah dalam format WebP
+ * (hasil konversi Canvas API di client-side). Lihat src/lib/image-compression.ts.
  *
- * @param file - File yang akan di-upload (JPG, PNG, WebP, AVIF)
+ * @param file - File WebP yang sudah dikompres di client-side
  * @param folder - Sub-folder di bucket (default: "general")
  * @returns UploadResult dengan URL publik atau pesan error
  */

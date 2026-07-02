@@ -11,7 +11,7 @@
 
 ## 🚀 MIGRASI 2: Vercel → Cloudflare Workers (2 Juli 2026)
 
-### Status: ✅ DEPLOY BERHASIL — ⚠️ Gambar/Logo Belum Tampil
+### Status: ✅ DEPLOY BERHASIL — ✅ Gambar/Logo FIXED
 
 Worker live di: **`https://mebelonline.mebelonline.workers.dev`**
 
@@ -51,15 +51,14 @@ Worker live di: **`https://mebelonline.mebelonline.workers.dev`**
 | `package.json` | Hapus `sharp`, hapus `postinstall`, tambah `cf-*` scripts |
 | `.gitignore` | Tambah `.open-next/`, `.wrangler/`, `.dev.vars` |
 
-### ⚠️ MASALAH YANG BELUM DIPERBAIKI
+### ✅ MASALAH GAMBAR — FIXED (2 Juli 2026)
 
 **Semua foto dan logo tidak tampil di website.**
 
-Kemungkinan penyebab:
-1. **Supabase Image Transformation belum diaktifkan** — Perlu enable di Supabase Dashboard → Storage → Settings
-2. **Image loader URL format salah** — Perlu verifikasi format URL `/render/image/public/` vs `/storage/v1/object/public/`
-3. **CORS issue** — Supabase Storage mungkin perlu konfigurasi CORS untuk domain workers.dev
-4. **Environment variables tidak terbaca** — Perlu cek apakah `NEXT_PUBLIC_*` vars benar-benar tersedia di client-side
+- **Penyebab**: `supabase-image-loader.ts` mengubah URL Supabase Storage dari `/storage/v1/object/public/` ke `/render/image/public/` yang membutuhkan Supabase Image Transformation (belum diaktifkan)
+- **Solusi**: Sederhanakan loader menjadi passthrough — return URL mentah tanpa transformasi, karena `unoptimized: true` di `next.config.ts` sudah membuat Next.js tidak memproses ulang gambar
+- **File yang diubah**: `src/lib/supabase-image-loader.ts`
+- **Commit**: `fix: simplify image loader to return raw URL (fix missing images on Cloudflare)`
 
 ### Cara Deploy Ulang
 
