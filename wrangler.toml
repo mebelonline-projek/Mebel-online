@@ -8,6 +8,7 @@ name = "mebel-online"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 main = ".open-next/worker.js"
+pages_build_output_dir = ".open-next/assets"
 
 # ============================================
 # Assets — static files dari Next.js build
@@ -20,7 +21,7 @@ binding = "ASSETS"
 # Build command — menggunakan OpenNext adapter
 # ============================================
 [build]
-command = "npm run build"
+command = "npm run cf-build"
 
 # ============================================
 # Environment Variables (Production)
