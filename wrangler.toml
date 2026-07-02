@@ -18,19 +18,11 @@ directory = ".open-next/assets"
 binding = "ASSETS"
 
 # ============================================
-# Environment Variables (Production)
+# Environment Variables
 # ============================================
-# Variabel di-set via:
-#   wrangler secret put <KEY>
-# atau via Cloudflare Dashboard > Workers > Settings > Variables
-#
-# Daftar variabel yang diperlukan:
-#   NEXT_PUBLIC_SUPABASE_URL
-#   NEXT_PUBLIC_SUPABASE_ANON_KEY
-#   SUPABASE_SERVICE_KEY
-#   SUPABASE_SERVICE_ROLE_KEY
-#   AUTH_SECRET
-#   AUTH_URL
-#   RESEND_API_KEY
-#   RESEND_FROM_EMAIL
-#   NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET (opsional, default: "furniture-images")
+# NEXT_PUBLIC_* variables (tersedia di client & server)
+[vars]
+NEXT_PUBLIC_SUPABASE_URL = "https://xczbowaotnvzduikgdad.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjemJvd2FvdG52emR1aWtnZGFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1OTg2MzIsImV4cCI6MjA5NzE3NDYzMn0.KU_cdATXkE6_FMSx-ZXvd-Qou-KwppESNtD5SSS7O4g"
+NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET = "furniture-images"
+RESEND_FROM_EMAIL = "noreply@tokofurnitur.com"
