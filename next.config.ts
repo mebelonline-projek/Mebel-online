@@ -1,14 +1,20 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Fix: multiple lockfiles warning — tentukan root proyek secara eksplisit
-  outputFileTracingRoot: process.cwd(),
+  // ============================================
+  // MIGRASI CLOUDFLARE: Konfigurasi untuk OpenNext
+  // ============================================
+
+  // Output standalone untuk Cloudflare Workers/Pages
+  output: "standalone",
+
   images: {
-    // Custom loader: bypass Vercel Image Optimization untuk gambar Supabase
-    // yang sudah dikompresi ke WebP (hemat kuota Vercel)
+    // Custom loader: Supabase Image Transformation
+    // Gambar dari Supabase dikonversi ke WebP on-the-fly via URL transformation
+    // (menggantikan sharp yang tidak kompatibel dengan Cloudflare Workers)
     loader: "custom",
     loaderFile: "./src/lib/supabase-image-loader.ts",
-    // Cache gambar lebih lama di Vercel CDN (mengurangi permintaan ulang)
+    // Cache gambar lebih lama di CDN (mengurangi permintaan ulang)
     minimumCacheTTL: 86400, // 1 hari
     remotePatterns: [
       {
@@ -25,7 +31,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  serverExternalPackages: ["bcryptjs"],
+  // bcryptjs pure JS, tidak perlu di-externalize untuk Cloudflare
+  // serverExternalPackages dihapus
   async headers() {
     return [
       {

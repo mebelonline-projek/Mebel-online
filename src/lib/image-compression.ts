@@ -32,7 +32,8 @@ interface CompressOptions {
 }
 
 // Client-side: resize + light compression (quality 0.92 = near-lossless).
-// Konversi ke WebP ditangani server-side oleh sharp.
+// Konversi ke WebP ditangani oleh Supabase Image Transformation saat gambar ditampilkan.
+// (Migrasi Cloudflare: sharp dihapus, Supabase handle WebP conversion on-the-fly)
 const COMPRESS_CONFIG: Record<string, CompressOptions> = {
   hero: {
     maxWidthOrHeight: 1600,
@@ -127,7 +128,7 @@ export async function kompresFoto(
       maxWidthOrHeight: config.maxWidthOrHeight,
       useWebWorker: true, // biar tidak nge-block UI thread
       // Jangan set fileType — pertahankan format asli (JPG/PNG).
-      // Konversi ke WebP ditangani server-side oleh sharp.
+      // Konversi ke WebP ditangani oleh Supabase Image Transformation.
       initialQuality: config.quality,
       alwaysKeepResolution: false,
     });
