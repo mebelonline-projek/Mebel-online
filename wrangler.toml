@@ -1,7 +1,8 @@
 # ============================================
 # Cloudflare Pages + OpenNext Configuration
 # ============================================
-# Dokumentasi: https://opennextjs.org/cloudflare
+# Untuk Cloudflare Pages via Git integration.
+# Build settings (build command, output dir) diatur di dashboard.
 # ============================================
 
 name = "mebel-online"
@@ -11,24 +12,9 @@ main = ".open-next/worker.js"
 pages_build_output_dir = ".open-next/assets"
 
 # ============================================
-# Assets — static files dari Next.js build
-# ============================================
-[assets]
-directory = ".open-next/assets"
-binding = "ASSETS"
-
-# ============================================
-# Build command — menggunakan OpenNext adapter
-# ============================================
-[build]
-command = "npm run cf-build"
-
-# ============================================
 # Environment Variables (Production)
 # ============================================
-# Variabel di bawah ini harus di-set via:
-#   wrangler secret put <KEY>
-# atau via Cloudflare Dashboard > Pages > Settings > Environment Variables
+# Variabel di-set via Cloudflare Dashboard > Pages > Settings > Environment Variables
 #
 # Daftar variabel yang diperlukan:
 #   NEXT_PUBLIC_SUPABASE_URL
@@ -40,18 +26,3 @@ command = "npm run cf-build"
 #   RESEND_API_KEY
 #   RESEND_FROM_EMAIL
 #   NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET (opsional, default: "furniture-images")
-
-# ============================================
-# Preview Environment (Branch deployments)
-# ============================================
-[env.preview]
-name = "mebel-online-preview"
-
-# ============================================
-# D1 Database (TIDAK DIGUNAKAN — tetap pakai Supabase)
-# ============================================
-# Jika nanti migrasi dari Supabase ke D1, uncomment baris di bawah:
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "mebel-online-db"
-# database_id = "YOUR_D1_DATABASE_ID"
