@@ -11,6 +11,48 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
 ### 2026-07-03
 
+#### Fixed
+- **Error 1102: Worker Exceeded Resource Limits di Halaman Admin**
+  - **Masalah:** 
+    - Login gagal dengan pesan "Terjadi kesalahan. Silakan coba lagi."
+    - Dashboard admin (`/admin/dashboard`) menampilkan Error 1102 setelah login berhasil
+    - Penyebab: Cloudflare Workers Free Tier hanya 50ms CPU time, sedangkan bcrypt.compare() + Supabase query memakan 60-80ms
+  - **Analisis Root Cause:**
+    - `src/lib/auth.ts` menggunakan bcryptjs untuk verifikasi password di Worker (20-40ms CPU)
+    - `src/app/api/admin/dashboard-stats/route.ts` melakukan 2 query Supabase terpisah (40-50ms CPU)
+    - Total CPU time melebihi limit 50ms Free Tier
+  - **Solusi yang Dipilih:** Pindahkan proses bcrypt dari Worker ke Supabase menggunakan Database Functions (RPC) dengan ekstensi pgcrypto
+    - **Keuntungan:**
+      - bcrypt tetap aman (pgcrypto menggunakan bcrypt yang sama)
+      - Hash yang sudah tersimpan di Supabase tetap kompatibel
+      - CPU berat pindah ke Supabase (gratis, tidak ada biaya tambahan)
+      - Query + verifikasi jadi 1 RPC call (mengurangi latency)
+    - **Alternatif yang Ditolak:**
+      - Hapus login sepenuhnya (tidak aman)
+      - Upgrade ke Workers Paid plan ($5/bulan) (berbayar)
+  - **Perubahan yang Dilakukan:**
+    1. **`scripts/optimize-auth.sql`** (BARU)
+       - Enable ekstensi `pgcrypto`
+       - Function `verify_admin_password(p_email, p_password)` — menggantikan SELECT + bcrypt.compare()
+       - Function `get_dashboard_stats()` — menggantikan 2 query terpisah
+    2. **`src/lib/auth.ts`**
+       - Ganti query manual + bcrypt.compare() dengan 1 RPC call ke `verify_admin_password`
+       - Fungsi `hashPassword()` dan `verifyPassword()` tetap ada untuk change-password/reset-password
+    3. **`src/app/api/admin/dashboard-stats/route.ts`**
+       - Ganti 2 query Supabase dengan 1 RPC call `get_dashboard_stats`
+    4. **`src/app/admin/dashboard/page.tsx`** (sebelumnya)
+       - Diubah dari SSR ke client component (data diambil via API dari browser)
+  - **Estimasi CPU Setelah Optimasi:**
+    - Login: 60-80ms → 15-25ms ✅ (di bawah 50ms limit)
+    - Dashboard API: 40-50ms → 10-15ms ✅ (di bawah 50ms limit)
+  - **⚠️ WAJIB: Jalankan SQL Migration**
+    - Buka Supabase Dashboard → SQL Editor
+    - Copy-paste isi file `scripts/optimize-auth.sql`
+    - Klik Run
+  - **Deploy Info:**
+    - Version ID: `a5dfdfd2-5e8f-4f9f-9894-7c89c2e8497d`
+    - Commit: `5176376`
+
 #### Changed
 - **Adaptive Quality Compression untuk Konsistensi WebP**
   - Masalah: Upload dari HP menghasilkan WebP 500-900 KB, sedangkan dari laptop <135 KB
