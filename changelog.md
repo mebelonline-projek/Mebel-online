@@ -9,6 +9,18 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
 ## [Unreleased]
 
+### 2026-07-03
+
+#### Changed
+- **Adaptive Quality Compression untuk Konsistensi WebP**
+  - Masalah: Upload dari HP menghasilkan WebP 500-900 KB, sedangkan dari laptop <135 KB
+  - Penyebab: Canvas API WebP encoder di mobile browser kurang agresif dibanding desktop
+  - Solusi: Implementasi adaptive quality loop (0.90 → 0.82 → 0.75)
+  - Quality minimum 0.75 untuk menjaga kualitas visual
+  - Target ukuran per tipe: produk 450 KB, galeri 400 KB, hero 500 KB, tentang-kami 450 KB, logo 100 KB
+  - File diubah: `src/lib/image-compression.ts`
+  - Hasil: Konsisten ≤500 KB di semua perangkat (laptop, HP, tablet)
+
 ### 2026-07-02
 
 #### Fixed

@@ -62,9 +62,11 @@
 
 interface CompressOptions {
   maxWidthOrHeight: number;
-  /** Quality WebP deterministik (0-1). Tidak iteratif, selalu fix. */
+  /** Quality WebP awal (0-1). Akan diturunkan iteratif jika hasil masih besar. */
   quality: number;
-  /** Target maksimal ukuran file dalam MB (safety net) */
+  /** Quality minimum — tidak akan turun di bawah ini. */
+  minQuality: number;
+  /** Target maksimal ukuran file dalam MB */
   maxSizeMB: number;
   /** Folder tujuan di Supabase Storage */
   folder: string;
@@ -72,41 +74,47 @@ interface CompressOptions {
   label: string;
 }
 
-// Canvas API: resize + konversi WebP dengan quality deterministik.
-// Quality 0.85 = near-lossless untuk WebP, setara JPEG ~95 secara visual.
+// Canvas API: resize + konversi WebP dengan adaptive quality.
+// Mulai dari quality 0.90 (near-lossless), turunkan iteratif jika hasil masih besar.
+// Quality minimum 0.75 — tidak boleh di bawah ini untuk menjaga kualitas visual.
 const COMPRESS_CONFIG: Record<string, CompressOptions> = {
   hero: {
     maxWidthOrHeight: 1600,
-    quality: 0.85,
-    maxSizeMB: 1.5,
+    quality: 0.90,
+    minQuality: 0.75,
+    maxSizeMB: 0.50,
     folder: "hero",
     label: "Hero (Halaman Utama)",
   },
   produk: {
     maxWidthOrHeight: 800,
-    quality: 0.85,
-    maxSizeMB: 1.5,
+    quality: 0.90,
+    minQuality: 0.75,
+    maxSizeMB: 0.45,
     folder: "products",
     label: "Produk (Katalog)",
   },
   "galeri-produk": {
     maxWidthOrHeight: 800,
-    quality: 0.85,
-    maxSizeMB: 1.5,
+    quality: 0.90,
+    minQuality: 0.75,
+    maxSizeMB: 0.40,
     folder: "products/variants",
     label: "Galeri Produk",
   },
   "tentang-kami": {
     maxWidthOrHeight: 1024,
-    quality: 0.85,
-    maxSizeMB: 1.5,
+    quality: 0.90,
+    minQuality: 0.75,
+    maxSizeMB: 0.45,
     folder: "tentang-kami",
     label: "Tentang Kami",
   },
   logo: {
     maxWidthOrHeight: 512,
-    quality: 0.85,
-    maxSizeMB: 1.5,
+    quality: 0.90,
+    minQuality: 0.75,
+    maxSizeMB: 0.10,
     folder: "settings",
     label: "Logo (Pengaturan)",
   },
@@ -236,33 +244,49 @@ export async function kompresFoto(
   // ── 2. Load gambar ke <img> ──
   const img = await loadImage(file);
 
-  // ── 3. Resize + konversi ke WebP via Canvas API ──
+  // ── 3. Resize + konversi ke WebP via Canvas API (Adaptive Quality) ──
+  const fileName = file.name.replace(/\.[^.]+$/, "") + ".webp";
+  const targetBytes = config.maxSizeMB * 1024 * 1024;
+  let currentQuality = config.quality;
   let blob: Blob;
+  let fileWebP: File;
+  let ukuranKompres: number;
+
   try {
-    blob = await resizeAndConvertToWebP(img, config.maxWidthOrHeight, config.quality);
+    blob = await resizeAndConvertToWebP(img, config.maxWidthOrHeight, currentQuality);
   } catch (error) {
     console.error(`❌ [${config.label}] Gagal konversi WebP:`, error);
     throw new Error("Gagal mengkonversi gambar. Silakan coba dengan file lain.");
   }
 
-  // ── 4. Buat File WebP dari Blob ──
-  const fileName = file.name.replace(/\.[^.]+$/, "") + ".webp";
-  let fileWebP = new File([blob], fileName, { type: "image/webp" });
-  let ukuranKompres = fileWebP.size;
+  fileWebP = new File([blob], fileName, { type: "image/webp" });
+  ukuranKompres = fileWebP.size;
 
-  // ── 5. Safety net: jika masih kegedean, turunkan quality ──
-  if (ukuranKompres > config.maxSizeMB * 1024 * 1024 * 1.5) {
+  // ── 4. Adaptive quality loop: turunkan quality sampai ≤ target ──
+  while (ukuranKompres > targetBytes && currentQuality > config.minQuality) {
+    const prevQuality = currentQuality;
+    currentQuality = Math.round((currentQuality - 0.08) * 100) / 100;
+    // Pastikan tidak di bawah minimum
+    currentQuality = Math.max(currentQuality, config.minQuality);
+
+    if (currentQuality === prevQuality) break; // Sudah di minimum
+
     console.warn(
-      `⚠️ [${config.label}] Hasil masih besar (${(ukuranKompres / 1024).toFixed(2)} KB), kompres ulang dengan quality lebih rendah...`
+      `⚠️ [${config.label}] ${(ukuranKompres / 1024).toFixed(2)} KB > ${(targetBytes / 1024).toFixed(0)} KB target, turunkan quality: ${prevQuality} → ${currentQuality}`
     );
-    const lowerQuality = Math.max(config.quality - 0.15, 0.5);
-    const blob2 = await resizeAndConvertToWebP(img, config.maxWidthOrHeight, lowerQuality);
-    const fileWebP2 = new File([blob2], fileName, { type: "image/webp" });
 
-    // Gunakan hasil kedua jika lebih kecil
-    if (fileWebP2.size < fileWebP.size) {
-      fileWebP = fileWebP2;
-      ukuranKompres = fileWebP2.size;
+    try {
+      blob = await resizeAndConvertToWebP(img, config.maxWidthOrHeight, currentQuality);
+      const newFile = new File([blob], fileName, { type: "image/webp" });
+      // Pakai hasil baru hanya jika lebih kecil
+      if (newFile.size < ukuranKompres) {
+        fileWebP = newFile;
+        ukuranKompres = newFile.size;
+      } else {
+        break; // Tidak mengecil, berhenti
+      }
+    } catch {
+      break; // Gagal kompres ulang, pakai hasil sebelumnya
     }
   }
 
@@ -272,7 +296,7 @@ export async function kompresFoto(
       : "0.0";
 
   console.log(
-    `✅ [${config.label}] Setelah kompresi: ${(ukuranKompres / 1024).toFixed(2)} KB (hemat ${persenHemat}%) | Format: WebP | Quality: ${config.quality}`
+    `✅ [${config.label}] Setelah kompresi: ${(ukuranKompres / 1024).toFixed(2)} KB (hemat ${persenHemat}%) | Format: WebP | Quality: ${currentQuality}`
   );
 
   return {
