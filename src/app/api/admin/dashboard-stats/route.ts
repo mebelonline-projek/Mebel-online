@@ -4,24 +4,25 @@ import { getSupabase } from "@/lib/supabase";
 export async function GET() {
   const supabase = getSupabase();
 
-  const [productsResult, categoriesResult] = await Promise.all([
-    supabase.from("Product").select("id, isActive"),
-    supabase.from("Category").select("id", { count: "exact", head: true }),
-  ]);
+  // Gunakan RPC untuk mendapatkan semua stats dalam 1 query
+  // Ini menghindari multiple queries yang memakan CPU Worker
+  const { data, error } = await supabase.rpc("get_dashboard_stats");
 
-  const products = productsResult.data ?? [];
-  const totalProducts = products.length;
-  const totalCategories = categoriesResult.count ?? 0;
-  const activeProducts = products.filter((p) => p.isActive).length;
-  const inactiveProducts = totalProducts - activeProducts;
+  if (error || !data || data.length === 0) {
+    return NextResponse.json({
+      success: false,
+      error: "Gagal mengambil statistik dashboard",
+    });
+  }
 
+  const stats = data[0];
   return NextResponse.json({
     success: true,
     data: {
-      totalProducts,
-      totalCategories,
-      activeProducts,
-      inactiveProducts,
+      totalProducts: Number(stats.totalProducts),
+      totalCategories: Number(stats.totalCategories),
+      activeProducts: Number(stats.activeProducts),
+      inactiveProducts: Number(stats.inactiveProducts),
     },
   });
 }
