@@ -69,15 +69,22 @@ export async function PUT(request: Request) {
     const settings = await getAllSettings();
 
     // Hapus foto lama dari Supabase kalau ada gambar yang berubah
-    // Jalankan async tanpa blocking response (fire-and-forget)
+    // Tunggu semua delete selesai sebelum kirim response (blocking)
+    const deletePromises: Promise<boolean>[] = [];
     for (const field of IMAGE_FIELDS) {
       const oldVal = oldSettings[field as keyof SiteSettings] as string;
       const newVal = body[field as keyof SiteSettings];
       if (newVal !== undefined && newVal !== oldVal && oldVal) {
-        deleteFromSupabase(oldVal).catch((err) =>
-          console.error(`Failed to delete old ${field} image:`, err)
+        deletePromises.push(
+          deleteFromSupabase(oldVal).catch((err) => {
+            console.error(`Failed to delete old ${field} image:`, err);
+            return false;
+          })
         );
       }
+    }
+    if (deletePromises.length > 0) {
+      await Promise.all(deletePromises);
     }
 
     return NextResponse.json({
