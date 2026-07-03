@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { getSupabase } from "./supabase";
 import type { SiteSettings } from "@/types";
 
@@ -38,7 +39,9 @@ const SETTING_KEYS = Array.from(
   ])
 );
 
-export async function getAllSettings(): Promise<SiteSettings> {
+// Cache getAllSettings agar hanya 1 query Supabase per request
+// (generateMetadata + HomePage keduanya memanggil fungsi ini)
+export const getAllSettings = cache(async (): Promise<SiteSettings> => {
   const { data: rows, error } = await getSupabase()
     .from("SiteConfig")
     .select("*")
@@ -77,7 +80,7 @@ export async function getAllSettings(): Promise<SiteSettings> {
   };
 
   return settings;
-}
+});
 
 export async function getSetting(key: string): Promise<string | null> {
   const { data: row, error } = await getSupabase()

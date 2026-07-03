@@ -3,22 +3,22 @@ import AdminHeader from "@/components/admin/AdminHeader";
 import { Package, Tags, CheckCircle, XCircle, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
-export const revalidate = 60;
+export const revalidate = 300;
 
 export default async function DashboardOverview() {
   const supabase = getSupabase();
-  const [totalProductsResult, totalCategoriesResult, activeResult, inactiveResult] =
-    await Promise.all([
-      supabase.from("Product").select("id", { count: "exact", head: true }),
-      supabase.from("Category").select("id", { count: "exact", head: true }),
-      supabase.from("Product").select("id", { count: "exact", head: true }).eq("isActive", true),
-      supabase.from("Product").select("id", { count: "exact", head: true }).eq("isActive", false),
-    ]);
+  // Gabungkan query Product menjadi 1 request (ambil semua, hitung di JS)
+  // dan query Category terpisah — total 2 request (sebelumnya 4)
+  const [productsResult, categoriesResult] = await Promise.all([
+    supabase.from("Product").select("id, isActive"),
+    supabase.from("Category").select("id", { count: "exact", head: true }),
+  ]);
 
-  const totalProducts = totalProductsResult.count ?? 0;
-  const totalCategories = totalCategoriesResult.count ?? 0;
-  const activeProducts = activeResult.count ?? 0;
-  const inactiveProducts = inactiveResult.count ?? 0;
+  const products = productsResult.data ?? [];
+  const totalProducts = products.length;
+  const totalCategories = categoriesResult.count ?? 0;
+  const activeProducts = products.filter((p) => p.isActive).length;
+  const inactiveProducts = totalProducts - activeProducts;
 
   const stats = [
     {

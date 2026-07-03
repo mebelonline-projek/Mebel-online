@@ -13,7 +13,7 @@ const ContactSection = dynamic(() => import("@/components/landing/ContactSection
 const Footer = dynamic(() => import("@/components/landing/Footer"), { ssr: true });
 const WhatsAppButton = dynamic(() => import("@/components/landing/WhatsAppButton"), { ssr: true });
 
-export const revalidate = 60;
+export const revalidate = 300;
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getAllSettings();
@@ -54,7 +54,7 @@ const INITIAL_PRODUCT_LIMIT = 20;
 
 export default async function HomePage() {
   const supabase = getSupabase();
-  const [settings, categoriesResult, productsResult, countResult] = await Promise.all([
+  const [settings, categoriesResult, productsResult] = await Promise.all([
     getAllSettings(),
     supabase
       .from("Category")
@@ -62,15 +62,11 @@ export default async function HomePage() {
       .order("sortOrder", { ascending: true }),
     supabase
       .from("Product")
-      .select("*, category:Category(name, slug)")
+      .select("*, category:Category(name, slug)", { count: "exact" })
       .eq("isActive", true)
       .order("sortOrder", { ascending: true })
       .order("createdAt", { ascending: false })
       .limit(INITIAL_PRODUCT_LIMIT),
-    supabase
-      .from("Product")
-      .select("id", { count: "exact", head: true })
-      .eq("isActive", true),
   ]);
 
   const categories = categoriesResult.data?.map((c) => ({
@@ -91,7 +87,7 @@ export default async function HomePage() {
     variants: p.variants ? (() => { try { const parsed = JSON.parse(p.variants); return Array.isArray(parsed) ? parsed : []; } catch { return []; } })() : [],
   }));
 
-  const totalProducts = countResult.count ?? 0;
+  const totalProducts = productsResult.count ?? 0;
 
   const jsonLd = {
     "@context": "https://schema.org",
