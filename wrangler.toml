@@ -18,6 +18,23 @@ directory = ".open-next/assets"
 binding = "ASSETS"
 
 # ============================================
+# Worker Limits — tingkatkan CPU time untuk Next.js SSR
+# ============================================
+# Free tier: 50ms CPU (sering exceeded untuk Next.js)
+# Paid plan ($5/bulan): bisa sampai 50s CPU
+[limits]
+cpu_ms = 10000
+
+# ============================================
+# R2 Bucket untuk Incremental Cache
+# ============================================
+# Buat R2 bucket bernama "mebel-online-cache" di Cloudflare Dashboard
+# atau jalankan: npx wrangler r2 bucket create mebel-online-cache
+[[r2_buckets]]
+binding = "NEXT_CACHE_BUCKET"
+bucket_name = "mebel-online-cache"
+
+# ============================================
 # Environment Variables
 # ============================================
 # Semua environment variables di-set via Cloudflare Dashboard:
