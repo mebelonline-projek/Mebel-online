@@ -93,7 +93,7 @@ export default function LoginForm({ logoUrl = "" }: LoginFormProps) {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@tokofurnitur.com"
+                placeholder="misal: masukan email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
