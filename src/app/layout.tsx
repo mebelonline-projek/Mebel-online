@@ -39,6 +39,14 @@ export const metadata: Metadata = {
   alternates: {
     canonical: process.env.AUTH_URL || "https://tokofurnitur.com",
   },
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon.ico", type: "image/x-icon" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
   openGraph: {
     title: "Muara Teweh — Mebel Online",
     description:
@@ -60,6 +68,9 @@ export default function RootLayout({
           rel="preconnect"
           href="https://xczbowaotnvzduikgdad.supabase.co"
         />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="msapplication-config" content="/browserconfig.xml" />
+        <meta name="theme-color" content="#b8860b" />
       </head>
       <body
         className={`${inter.variable} ${fredoka.variable} ${poppins.variable} antialiased`}
