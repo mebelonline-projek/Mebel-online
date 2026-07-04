@@ -9,6 +9,64 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
 ## [Unreleased]
 
+### 2026-07-05
+
+#### Fixed
+- **Halaman Admin Kategori Error "Terjadi Kesalahan"**
+  - **Masalah:** Halaman `/admin/dashboard/categories` menampilkan error "Terjadi Kesalahan saat memuat bagian ini"
+  - **Root Cause:** Optimasi CPU (2026-07-03) menghapus JOIN COUNT dari `GET /api/categories`, tapi frontend masih mengakses `cat._count.products` yang kini `undefined`
+  - **Error:** `TypeError: Cannot read properties of undefined (reading 'products')` di `Array.map()`
+  - **Solusi:** Defensive coding di frontend — gunakan optional chaining `_count?.products ?? 0`
+  - **Perubahan:**
+    - `src/app/admin/dashboard/categories/page.tsx`: Interface `Category` → `_count?: { products: number }`, semua akses `_count.products` → `_count?.products ?? 0`
+  - **Deploy:** Commit `9ca32f8`, Version ID `f029dba8-43cc-425d-81c6-ba2e2e71ef7e`
+
+#### Security
+- **Perbaikan Security Warning Supabase Linter (6 warning → 0)**
+  - **Masalah:** 6 warning dari Supabase Database Linter terkait keamanan RPC functions
+  - **Perubahan:**
+    - `scripts/optimize-auth.sql`: Tambahkan `SET search_path = 'pg_catalog, pg_temp, public'` pada kedua function
+    - Tambahkan `GRANT EXECUTE ... TO service_role` (penting: service_role di Supabase BUKAN superuser)
+    - Tambahkan `REVOKE EXECUTE ... FROM anon, authenticated` (JANGAN dari PUBLIC — akan blokir service_role)
+    - Tambahkan `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO service_role`
+  - **Warning yang Dihapus:**
+    - `function_search_path_mutable` (2 warning) ✅
+    - `anon_security_definer_function_executable` (2 warning) ✅
+    - `authenticated_security_definer_function_executable` (2 warning) ✅
+  - **File Baru:** `scripts/fix-auth-functions.sql` — versi fix yang bisa langsung dijalankan di Supabase
+
+#### Known Issues
+- **❌ Login Admin Gagal — "Email atau password salah"**
+  - **Status:** MASIH BELUM TERSELESAIKAN
+  - **Gejala:** Login dengan kredensial yang benar tetap gagal, pesan "Email atau password salah"
+  - **Console:** Kosong (tidak ada error di browser)
+  - **Teori Root Cause:**
+    1. `REVOKE EXECUTE FROM PUBLIC` memblokir `service_role` (service_role di Supabase bukan superuser)
+    2. Function `verify_admin_password` mungkin tidak bisa akses tabel `Admin` atau `crypt()` dari pgcrypto
+    3. `SUPABASE_SERVICE_KEY` mungkin salah/expired di Cloudflare Dashboard
+    4. NextAuth session mungkin corrupt akibat error-code loop sebelumnya
+  - **Fix yang Sudah Dicoba:**
+    - ✅ `SET search_path = 'pg_catalog, pg_temp, public'` (sudah diterapkan)
+    - ✅ `GRANT EXECUTE TO service_role` (sudah ada di script)
+    - ✅ `REVOKE FROM anon, authenticated` saja (tanpa PUBLIC)
+    - ❌ **Masih gagal** — perlu investigasi lebih lanjut
+  - **Langkah Selanjutnya (untuk sesi besok):**
+    1. **Verifikasi di Supabase SQL Editor:**
+       ```sql
+       -- Test function langsung
+       SELECT verify_admin_password('admin@example.com', 'password123');
+       SELECT * FROM get_dashboard_stats();
+       ```
+    2. **Cek Supabase Logs** — lihat apakah RPC call masuk dan error apa yang muncul
+    3. **Cek tabel Admin** — pastikan data admin ada dan password hash format benar
+    4. **Cek environment variables** — pastikan `SUPABASE_SERVICE_KEY` benar di Cloudflare Dashboard
+    5. **Clear NextAuth session** — mungkin perlu clear cookies/storage di browser
+  - **File yang Perlu Diperiksa:**
+    - `src/lib/auth.ts` — verifikasi RPC call `verify_admin_password`
+    - `src/lib/supabase.ts` — cek apakah `SUPABASE_SERVICE_KEY` benar
+    - `src/middleware.ts` — cek apakah ada proteksi yang redirect ke login
+  - **Script Fix:** `scripts/fix-auth-functions.sql` — sudah dibuat, tinggal jalankan di Supabase
+
 ### 2026-07-04
 
 #### Fixed
