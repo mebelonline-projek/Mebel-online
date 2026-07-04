@@ -1,0 +1,10 @@
+{
+  "additionalDirectories": [
+    "C:\\root\\.abacusai\\plans"
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(tail *)"
+    ]
+  }
+}
