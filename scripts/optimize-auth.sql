@@ -23,7 +23,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = ''
+SET search_path = 'pg_catalog, pg_temp, public'
 AS $$
 BEGIN
   RETURN QUERY
@@ -53,7 +53,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = ''
+SET search_path = 'pg_catalog, pg_temp, public'
 AS $$
 DECLARE
   v_total_products BIGINT;
