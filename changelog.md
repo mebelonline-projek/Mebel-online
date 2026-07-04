@@ -49,9 +49,39 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
     - Buka Supabase Dashboard → SQL Editor
     - Copy-paste isi file `scripts/optimize-auth.sql`
     - Klik Run
+   - **Deploy Info:**
+     - Version ID: `a5dfdfd2-5e8f-4f9f-9894-7c89c2e8497d`
+     - Commit: `5176376`
+
+- **Optimasi CPU Worker: Hapus Rate-Limiter, Auto-Renumber, dan JOIN COUNT**
+  - **Masalah:** Setelah fix login dengan RPC, masih ada bottleneck lain yang menyebabkan Error 1102
+  - **Analisis Root Cause:**
+    1. **Rate-limiter database-based** (`src/lib/rate-limit.ts`): 2-3 query Supabase per request (25-35ms overhead)
+    2. **Auto-renumber N+1 loop** di `POST /api/products`: Loop UPDATE untuk setiap produk setelah insert (100-150ms untuk 50 produk)
+    3. **JOIN COUNT** di `GET /api/categories`: Aggregate count per kategori (5-10ms overhead)
+  - **Keputusan yang Diambil:**
+    1. **HAPUS rate-limiter database-based**
+       - Alasan: Single admin user, low traffic, overhead tidak sebanding dengan manfaat
+       - File dihapus: `src/lib/rate-limit.ts`
+       - Import dihapus dari: `products/route.ts`, `categories/route.ts`, `products/[id]/route.ts`, `auth/reset-password/route.ts`, `auth/forgot-password/route.ts`
+    2. **HAPUS auto-renumber loop** di `POST /api/products`
+       - Alasan: N+1 query problem, produk baru cukup ditaruh di akhir (sortOrder = max+1)
+       - User masih bisa renumber manual via tombol "Urutkan Ulang" di UI
+       - Baris dihapus: 169-208 di `src/app/api/products/route.ts`
+    3. **HAPUS JOIN COUNT** di `GET /api/categories`
+       - Alasan: Count tidak dipakai di landing page, hanya di admin categories page
+       - Query diubah dari `select("*, products:Product(count)")` → `select("*")`
+    4. **TOLAK rekomendasi ubah dashboard ke SSR+ISR**
+       - Alasan: Dashboard sudah client component (optimal), Worker hanya kirim HTML shell statis
+       - Mengubah ke SSR justru menambah beban Worker (harus panggil Supabase RPC setiap 30 detik)
+  - **Estimasi CPU Setelah Optimasi:**
+    - GET /api/products: 10-15ms ✅
+    - GET /api/categories: 10-15ms ✅
+    - POST /api/products: 10-15ms ✅
+    - Login: 15-25ms ✅ (sudah fixed sebelumnya dengan RPC)
   - **Deploy Info:**
-    - Version ID: `a5dfdfd2-5e8f-4f9f-9894-7c89c2e8497d`
-    - Commit: `5176376`
+    - Version ID: `4790fbe0-2c88-4363-9dc2-ede6a0da1c67`
+    - Commit: `25c96a5`
 
 #### Changed
 - **Adaptive Quality Compression untuk Konsistensi WebP**
