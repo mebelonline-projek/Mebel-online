@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
-import { publicApiRateLimiter } from "@/lib/rate-limit";
 
 // Generate UUID tanpa dependensi crypto Node.js
 function generateUUID(): string {
@@ -21,18 +20,6 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get("page") ?? "1");
     const limit = parseInt(searchParams.get("limit") ?? "50");
     const all = searchParams.get("all") === "true"; // admin: include inactive
-
-    // Rate limit untuk endpoint publik (tanpa all=true)
-    if (!all) {
-      const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "anonymous";
-      const { allowed } = await publicApiRateLimiter(ip, "public-products");
-      if (!allowed) {
-        return NextResponse.json(
-          { success: false, error: "Terlalu banyak permintaan. Silakan coba lagi nanti." },
-          { status: 429 }
-        );
-      }
-    }
 
     // Proteksi: hanya admin bisa lihat produk non-aktif
     if (all) {
@@ -164,47 +151,6 @@ export async function POST(request: Request) {
         { success: false, error: `Gagal menambah produk: ${createError?.message || "Unknown error"}` },
         { status: 500 }
       );
-    }
-
-    // ── Auto-renumber semua produk setelah insert ──
-    // Ambil semua produk, urutkan: sortOrder ASC lalu createdAt DESC (tiebreak)
-    const { data: allProducts, error: renumberFindError } = await supabase
-      .from("Product")
-      .select("id, sortOrder, createdAt")
-      .order("sortOrder", { ascending: true })
-      .order("createdAt", { ascending: false });
-
-    if (renumberFindError) {
-      console.error("Renumber find error:", renumberFindError);
-      // Tetap return produk walau renumber gagal
-      return NextResponse.json(
-        {
-          success: true,
-          data: {
-            ...product,
-            images: product.images ? JSON.parse(product.images) : [],
-            variants: product.variants ? JSON.parse(product.variants) : [],
-          },
-        },
-        { status: 201 }
-      );
-    }
-
-    // Update sortOrder berurutan 1, 2, 3, ...
-    let newSortOrder = 1;
-    for (const p of allProducts) {
-      const { error: updateError } = await supabase
-        .from("Product")
-        .update({ sortOrder: newSortOrder })
-        .eq("id", p.id);
-      if (updateError) {
-        console.error("Renumber update error for", p.id, ":", updateError);
-      }
-      // Catat sortOrder yang baru untuk produk yang baru saja di-insert
-      if (p.id === product.id) {
-        product.sortOrder = newSortOrder;
-      }
-      newSortOrder++;
     }
 
     return NextResponse.json(

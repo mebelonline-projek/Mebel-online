@@ -4,27 +4,10 @@ import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "@/lib/email";
-import { forgotPasswordRateLimiter } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
     const { email } = await request.json();
-
-    // Rate limiting berdasarkan IP
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      request.headers.get("x-real-ip") ??
-      "unknown";
-    const rateCheck = await forgotPasswordRateLimiter(ip, "forgot-password");
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Terlalu banyak permintaan. Silakan coba lagi dalam 15 menit.",
-        },
-        { status: 429 }
-      );
-    }
 
     if (!email || typeof email !== "string") {
       return NextResponse.json(

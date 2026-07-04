@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/api-auth";
-import { publicApiRateLimiter } from "@/lib/rate-limit";
 
 function generateUUID(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -20,20 +19,11 @@ const categorySchema = z.object({
 });
 
 // GET /api/categories
-export async function GET(request: Request) {
-  // Rate limit untuk endpoint publik
-  const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "anonymous";
-  const { allowed } = await publicApiRateLimiter(ip, "public-categories");
-  if (!allowed) {
-    return NextResponse.json(
-      { success: false, error: "Terlalu banyak permintaan. Silakan coba lagi nanti." },
-      { status: 429 }
-    );
-  }
+export async function GET() {
   try {
     const { data: categories, error } = await getSupabase()
       .from("Category")
-      .select("*, products:Product(count)")
+      .select("*")
       .order("sortOrder", { ascending: true })
       .order("name", { ascending: true });
 
@@ -45,20 +35,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // Map to match expected _count format
-    const mapped = (categories ?? []).map((c) => ({
-      id: c.id,
-      name: c.name,
-      slug: c.slug,
-      description: c.description,
-      image: c.image,
-      sortOrder: c.sortOrder,
-      createdAt: c.createdAt,
-      updatedAt: c.updatedAt,
-      _count: { products: c.products?.[0]?.count ?? 0 },
-    }));
-
-    return NextResponse.json({ success: true, data: mapped });
+    return NextResponse.json({ success: true, data: categories ?? [] });
   } catch (error) {
     console.error("Get categories error:", error);
     return NextResponse.json(

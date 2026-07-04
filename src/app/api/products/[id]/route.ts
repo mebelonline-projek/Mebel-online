@@ -2,22 +2,12 @@ import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/api-auth";
 import { deleteFromSupabase } from "@/lib/upload";
-import { publicApiRateLimiter } from "@/lib/rate-limit";
 
 // GET /api/products/[id]
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Rate limit untuk endpoint publik
-  const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "anonymous";
-  const { allowed } = await publicApiRateLimiter(ip, "public-product-detail");
-  if (!allowed) {
-    return NextResponse.json(
-      { success: false, error: "Terlalu banyak permintaan. Silakan coba lagi nanti." },
-      { status: 429 }
-    );
-  }
   try {
     const { id } = await params;
     const { data: product, error } = await getSupabase()
