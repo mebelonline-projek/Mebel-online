@@ -9,6 +9,37 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
 ## [Unreleased]
 
+### 2026-07-04
+
+#### Fixed
+- **Error "Terjadi Kesalahan" pada Halaman Admin Kategori**
+  - **Masalah:** Halaman `/admin/dashboard/categories` menampilkan error "Terjadi Kesalahan saat memuat bagian ini"
+  - **Root Cause:** Optimasi CPU (2026-07-03) menghapus JOIN COUNT dari `GET /api/categories` (`select("*, products:Product(count)")` → `select("*")`), tapi frontend masih mengakses `cat._count.products` yang kini `undefined`
+  - **Error:** `TypeError: Cannot read properties of undefined (reading 'products')` di `Array.map()`
+  - **Solusi:** Defensive coding di frontend — gunakan optional chaining `_count?.products ?? 0`
+  - **Perubahan yang Dilakukan:**
+    1. **`src/app/admin/dashboard/categories/page.tsx`**
+       - Interface `Category`: `_count` diubah menjadi optional (`_count?: { products: number }`)
+       - Semua akses `cat._count.products` → `cat._count?.products ?? 0` (6 tempat)
+       - Semua akses `deleteTarget._count.products` → `(deleteTarget._count?.products ?? 0)` (3 tempat)
+       - Semua akses `c._count.products` → `c._count?.products ?? 0` (1 tempat)
+  - **Impact:** Zero CPU overhead, zero latency, halaman kategori kembali normal
+  - **Catatan:** Tidak mengembalikan JOIN COUNT ke API karena akan undo optimasi CPU & berisiko Error 1102 lagi
+
+#### Security
+- **Perbaikan Security Warning Supabase Linter (6 warning → 0)**
+  - **Masalah:** 6 warning dari Supabase Database Linter terkait keamanan RPC functions
+  - **Perubahan yang Dilakukan:**
+    1. **`scripts/optimize-auth.sql`**
+       - Tambahkan `SET search_path = ''` pada `verify_admin_password` dan `get_dashboard_stats` — mencegah search path injection
+       - Tambahkan `REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated` — cabut akses publik dari RPC functions
+       - Tambahkan `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC` — cegah auto-grant di masa depan
+  - **Warning yang Dihapus:**
+    - `function_search_path_mutable` (2 warning) ✅
+    - `anon_security_definer_function_executable` (2 warning) ✅
+    - `authenticated_security_definer_function_executable` (2 warning) ✅
+  - **Dampak:** Zero impact pada performa & UX — semua RPC dipanggil via `service_role` dari server Next.js
+
 ### 2026-07-03
 
 #### Fixed

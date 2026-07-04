@@ -44,7 +44,7 @@ interface Category {
   description: string | null;
   image: string | null;
   sortOrder: number;
-  _count: { products: number };
+  _count?: { products: number };
 }
 
 export default function CategoriesPage() {
@@ -313,7 +313,7 @@ export default function CategoriesPage() {
 
                 <div className="flex items-center justify-between pt-3 border-t border-gray-50">
                   <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-0">
-                    {cat._count.products} produk
+                    {cat._count?.products ?? 0} produk
                   </Badge>
                   <span className="text-xs text-gray-400">
                     Urutan: {cat.sortOrder}
@@ -464,13 +464,13 @@ export default function CategoriesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Kategori</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget && deleteTarget._count.products > 0
-                ? `Kategori "${deleteTarget.name}" memiliki ${deleteTarget._count.products} produk. Pindahkan produk ke kategori lain sebelum menghapus.`
+              {deleteTarget && (deleteTarget._count?.products ?? 0) > 0
+                ? `Kategori "${deleteTarget.name}" memiliki ${deleteTarget._count?.products ?? 0} produk. Pindahkan produk ke kategori lain sebelum menghapus.`
                 : `Apakah Anda yakin ingin menghapus kategori "${deleteTarget?.name}"?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          {deleteTarget && deleteTarget._count.products > 0 && (
+          {deleteTarget && (deleteTarget._count?.products ?? 0) > 0 && (
             <div className="px-6 py-2">
               <Label htmlFor="move-category-id" className="text-sm font-medium text-gray-700 mb-2 block">
                 Pindahkan produk ke kategori:
@@ -486,7 +486,7 @@ export default function CategoriesPage() {
                   .filter((c) => c.id !== deleteTarget?.id)
                   .map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} ({c._count.products} produk)
+                      {c.name} ({c._count?.products ?? 0} produk)
                     </option>
                   ))}
               </select>
@@ -495,7 +495,7 @@ export default function CategoriesPage() {
 
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-xl">Batal</AlertDialogCancel>
-            {deleteTarget && deleteTarget._count.products > 0 ? (
+            {deleteTarget && (deleteTarget._count?.products ?? 0) > 0 ? (
               <AlertDialogAction
                 onClick={handleDelete}
                 disabled={!moveToCategoryId || isMovingAndDeleting}

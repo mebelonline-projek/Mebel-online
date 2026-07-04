@@ -23,6 +23,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = ''
 AS $$
 BEGIN
   RETURN QUERY
@@ -32,6 +33,11 @@ BEGIN
     AND a.password = crypt(p_password, a.password);
 END;
 $$;
+
+-- Revoke akses dari PUBLIC, anon & authenticated (dipanggil via service_role dari server)
+-- PostgreSQL default GRANT EXECUTE ke PUBLIC saat CREATE OR REPLACE FUNCTION
+REVOKE EXECUTE ON FUNCTION verify_admin_password(text, text) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION verify_admin_password(text, text) FROM anon, authenticated;
 
 -- ============================================
 -- 3. Function: get_dashboard_stats
@@ -47,6 +53,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = ''
 AS $$
 DECLARE
   v_total_products BIGINT;
@@ -65,3 +72,13 @@ BEGIN
     (v_total_products - v_active_products) AS "inactiveProducts";
 END;
 $$;
+
+-- Revoke akses dari PUBLIC, anon & authenticated (dipanggil via service_role dari server)
+-- PostgreSQL default GRANT EXECUTE ke PUBLIC saat CREATE OR REPLACE FUNCTION
+REVOKE EXECUTE ON FUNCTION get_dashboard_stats() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION get_dashboard_stats() FROM anon, authenticated;
+
+-- ============================================
+-- 4. Cegah auto-grant EXECUTE ke PUBLIC di masa depan
+-- ============================================
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
