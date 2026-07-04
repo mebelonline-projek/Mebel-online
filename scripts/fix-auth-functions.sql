@@ -1,17 +1,10 @@
 -- ============================================
--- Optimasi Auth & Dashboard untuk Cloudflare Workers
--- Pindahkan bcrypt dari Worker ke Supabase (pgcrypto)
+-- Fix: Hapus REVOKE FROM PUBLIC yang memblokir service_role
+-- service_role di Supabase BUKAN superuser, jadi REVOKE FROM PUBLIC
+-- benar-benar mencabut akses execute dari service_role
 -- ============================================
 
--- 1. Enable pgcrypto extension (jika belum aktif)
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
--- ============================================
--- 2. Function: verify_admin_password
--- Menggantikan SELECT + bcrypt.compare() di Worker
--- Input: email, password (plain text)
--- Output: data admin (id, email, name) jika password valid, NULL jika tidak
--- ============================================
+-- 1. Re-create function dengan search_path yang benar
 CREATE OR REPLACE FUNCTION verify_admin_password(
   p_email TEXT,
   p_password TEXT
@@ -34,16 +27,6 @@ BEGIN
 END;
 $$;
 
--- Grant akses ke service_role (penting: service_role di Supabase BUKAN superuser)
-GRANT EXECUTE ON FUNCTION verify_admin_password(text, text) TO service_role;
--- Revoke akses dari anon & authenticated (JANGAN dari PUBLIC — akan blokir service_role)
-REVOKE EXECUTE ON FUNCTION verify_admin_password(text, text) FROM anon, authenticated;
-
--- ============================================
--- 3. Function: get_dashboard_stats
--- Menggantikan 2 query terpisah di /api/admin/dashboard-stats
--- Output: totalProducts, totalCategories, activeProducts, inactiveProducts
--- ============================================
 CREATE OR REPLACE FUNCTION get_dashboard_stats()
 RETURNS TABLE (
   "totalProducts" BIGINT,
@@ -73,12 +56,20 @@ BEGIN
 END;
 $$;
 
--- Grant akses ke service_role (penting: service_role di Supabase BUKAN superuser)
+-- 2. GRANT EXECUTE kembali ke service_role (penting!)
+GRANT EXECUTE ON FUNCTION verify_admin_password(text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION get_dashboard_stats() TO service_role;
--- Revoke akses dari anon & authenticated (JANGAN dari PUBLIC — akan blokir service_role)
+
+-- 3. Hanya revoke dari anon & authenticated (JANGAN dari PUBLIC)
+REVOKE EXECUTE ON FUNCTION verify_admin_password(text, text) FROM anon, authenticated;
 REVOKE EXECUTE ON FUNCTION get_dashboard_stats() FROM anon, authenticated;
 
--- ============================================
--- 4. Pastikan function baru tetap bisa diakses service_role
--- ============================================
+-- 4. Hapus ALTER DEFAULT PRIVILEGES yang memblokir PUBLIC
+-- (ini yang menyebabkan function baru otomatis di-revoke dari PUBLIC)
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO service_role;
+
+-- ============================================
+-- DIAGNOSTIC: Jalankan query ini untuk verifikasi
+-- ============================================
+-- SELECT verify_admin_password('admin@example.com', 'password123');
+-- SELECT * FROM get_dashboard_stats();
