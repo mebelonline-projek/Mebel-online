@@ -42,6 +42,9 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
     - `src/app/admin/login/LoginForm.tsx` — fetch logo via `useEffect` + gunakan Server Action `loginAction`
     - `src/app/admin/login/actions.ts` — BARU, Server Action untuk login via `signIn("credentials")`
     - `src/app/api/settings/logo/route.ts` — BARU, API endpoint publik untuk fetch logo (tanpa requireAdmin)
+  - **Deploy Info:**
+    - Commit: `ff8083f`
+    - Version ID: `b741af82-bc96-431f-b452-6396bc842765`
 
 ### ⚠️ PERINGATAN KERAS: CPU LIMIT CLOUDFLARE WORKERS (50ms)
 
