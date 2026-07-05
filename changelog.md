@@ -76,7 +76,12 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
   - **Catatan:** App menggunakan `service_role` key → bypass RLS, jadi tidak terganggu
 
 #### Known Issues
-- **✅ Login Admin Gagal — RESOLVED** (lihat detail di section Fixed di atas)
+- **⚠️ Login Admin Gagal di Production (mebelonline.id) — BELUM RESOLVED**
+  - **Masalah:** Login berhasil di localhost, tapi gagal di domain `mebelonline.id` dengan pesan "Email atau password salah"
+  - **Root Cause:** Script `fix-auth-functions.sql` dijalankan setelah `fix-supabase-linter.sql`, sehingga function `verify_admin_password` di-overwrite dengan versi yang menggunakan `crypt()` tanpa prefix `extensions.`. Function return empty array → login gagal.
+  - **Diagnosis:** Test RPC langsung ke Supabase → `verify_admin_password` return `[]` (empty)
+  - **Script Fix:** `scripts/fix-verify-password.sql` — re-create function dengan `extensions.crypt()`
+  - **Status:** Script sudah dibuat, WAJIB dijalankan di Supabase SQL Editor
 - **✅ Dashboard Error: "Cannot read properties of undefined (reading 'call')" — RESOLVED** (lihat detail di section Fixed di atas)
 
 ### 2026-07-04
