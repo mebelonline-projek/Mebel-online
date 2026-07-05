@@ -37,10 +37,10 @@ export async function GET() {
 
     // Transform response: Supabase mengembalikan Product[{count}] 
     // Frontend mengharapkan _count.products
-    const transformed = (categories ?? []).map((cat: any) => ({
+    const transformed = (categories ?? []).map((cat: Record<string, unknown>) => ({
       ...cat,
       _count: {
-        products: cat.Product?.[0]?.count ?? 0,
+        products: (cat.Product as Array<{ count: number }> | undefined)?.[0]?.count ?? 0,
       },
       Product: undefined,
     }));
