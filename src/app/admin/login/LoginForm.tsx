@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -10,43 +9,48 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertCircle, Eye, EyeOff, Store } from "lucide-react";
+import { loginAction } from "./actions";
 
-interface LoginFormProps {
-  logoUrl?: string;
-}
-
-export default function LoginForm({ logoUrl = "" }: LoginFormProps) {
+export default function LoginForm() {
   const router = useRouter();
+  const [logoUrl, setLogoUrl] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Fetch logo di client-side untuk menghindari CPU timeout di Worker
+  useEffect(() => {
+    fetch("/api/settings/logo")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.logoUrl) {
+          setLogoUrl(data.logoUrl);
+        }
+      })
+      .catch(() => {
+        // silent — gunakan default logo
+      });
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsLoading(true);
 
-    try {
-      const result = await signIn("credentials", {
-        email: email.toLowerCase(),
-        password,
-        redirect: false,
-      });
+    const formData = new FormData();
+    formData.append("email", email.toLowerCase());
+    formData.append("password", password);
 
-      if (result?.error) {
-        setError("Email atau password salah.");
-        setIsLoading(false);
-        return;
+    startTransition(async () => {
+      const result = await loginAction(formData);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        router.push("/admin/dashboard");
+        router.refresh();
       }
-
-      router.push("/admin/dashboard");
-      router.refresh();
-    } catch {
-      setError("Terjadi kesalahan. Silakan coba lagi.");
-      setIsLoading(false);
-    }
+    });
   };
 
   return (
@@ -131,10 +135,10 @@ export default function LoginForm({ logoUrl = "" }: LoginFormProps) {
 
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isPending}
               className="w-full h-11 bg-brand-maroon hover:bg-brand-maroon-dark text-white rounded-xl"
             >
-              {isLoading ? (
+              {isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Memproses...

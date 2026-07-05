@@ -9,6 +9,40 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
 ## [Unreleased]
 
+### 2026-07-05 (Lanjutan)
+
+#### Fixed
+- **✅ Dashboard Error: "Cannot read properties of undefined (reading 'call')" (RESOLVED)**
+  - **Masalah:** Setelah login berhasil, dashboard menampilkan error runtime `TypeError: Cannot read properties of undefined (reading 'call')` di `<ClientPageRoot>`
+  - **Root Cause:** File orphan `src/components/auth/AuthProvider.tsx` masih meng-import `SessionProvider` dari `next-auth/react`. Meski tidak di-import di manapun, webpack Next.js tetap memproses semua file `.tsx` di `src/` saat build. Module `next-auth/react` gagal di-resolve → `undefined` → `options.factory is undefined` → crash
+  - **Solusi:** Hapus file orphan `src/components/auth/AuthProvider.tsx` + clean `.next` cache + hard refresh browser (`Ctrl+Shift+R`)
+  - **Catatan:** Browser cache menyimpan JavaScript bundle lama yang masih mengandung referensi ke `useSession`. Hard refresh WAJIB dilakukan
+
+- **✅ Halaman Kategori Menampilkan 0 Produk (RESOLVED)**
+  - **Masalah:** Halaman `/admin/dashboard/categories` menampilkan semua kategori dengan "0 produk"
+  - **Root Cause:** Optimasi CPU (2026-07-03) menghapus JOIN COUNT dari `GET /api/categories` (`select("*, products:Product(count)")` → `select("*")`), sehingga `_count` selalu `undefined` → `_count?.products ?? 0` = 0
+  - **Solusi:** 
+    1. Kembalikan JOIN COUNT di `GET /api/categories` → `select("*, Product(count)")`
+    2. Transform response dari format Supabase `Product[{count}]` ke `_count.products` yang diharapkan frontend
+  - **Perubahan:**
+    - `src/app/api/categories/route.ts`: 
+      - Line 26: `select("*, Product(count)")`
+      - Tambah transform response: `Product[0].count` → `_count.products`
+  - **Catatan:** JOIN count menambah 5-10ms CPU. Di production bisa optimasi via RPC function jika diperlukan
+
+- **✅ Login Admin 404 + CPU Timeout (RESOLVED)**
+  - **Masalah:** Halaman `/admin/login` return 404 atau error CPU timeout di Cloudflare Workers
+  - **Root Cause:** `src/app/admin/login/page.tsx` adalah Server Component yang memanggil `getAllSettings()` → query Supabase ke tabel `SiteConfig` saat render. Di Cloudflare Workers, data fetching di Server Component bisa gagal/timeout
+  - **Solusi:**
+    1. Ubah `src/app/admin/login/page.tsx` jadi Client Component wrapper murni (tidak ada data fetching di server)
+    2. Fetch logo di client-side via API endpoint baru `/api/settings/logo`
+    3. Gunakan Server Action untuk login (lebih reliable di Cloudflare Workers dibanding `signIn` dari `next-auth/react`)
+  - **Perubahan:**
+    - `src/app/admin/login/page.tsx` — hapus `getAllSettings()`, jadi wrapper Client Component
+    - `src/app/admin/login/LoginForm.tsx` — fetch logo via `useEffect` + gunakan Server Action `loginAction`
+    - `src/app/admin/login/actions.ts` — BARU, Server Action untuk login via `signIn("credentials")`
+    - `src/app/api/settings/logo/route.ts` — BARU, API endpoint publik untuk fetch logo (tanpa requireAdmin)
+
 ### ⚠️ PERINGATAN KERAS: CPU LIMIT CLOUDFLARE WORKERS (50ms)
 
 **PROYEK INI MENGGUNAKAN CLOUDFLARE WORKERS FREE TIER — CPU LIMIT 50ms PER REQUEST**

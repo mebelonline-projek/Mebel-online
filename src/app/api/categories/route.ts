@@ -23,7 +23,7 @@ export async function GET() {
   try {
     const { data: categories, error } = await getSupabase()
       .from("Category")
-      .select("*")
+      .select("*, Product(count)")
       .order("sortOrder", { ascending: true })
       .order("name", { ascending: true });
 
@@ -35,7 +35,17 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ success: true, data: categories ?? [] });
+    // Transform response: Supabase mengembalikan Product[{count}] 
+    // Frontend mengharapkan _count.products
+    const transformed = (categories ?? []).map((cat: any) => ({
+      ...cat,
+      _count: {
+        products: cat.Product?.[0]?.count ?? 0,
+      },
+      Product: undefined,
+    }));
+
+    return NextResponse.json({ success: true, data: transformed });
   } catch (error) {
     console.error("Get categories error:", error);
     return NextResponse.json(

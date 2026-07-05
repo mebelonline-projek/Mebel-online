@@ -1,8 +1,7 @@
-import { getAllSettings } from "@/lib/site-config";
 import LoginForm from "./LoginForm";
 
-export default async function AdminLoginPage() {
-  const settings = await getAllSettings();
-
-  return <LoginForm logoUrl={settings.site_logo} />;
+// Login page adalah Client Component wrapper murni
+// Tidak ada data fetching di server untuk menghindari CPU timeout di Cloudflare Workers
+export default function AdminLoginPage() {
+  return <LoginForm />;
 }
