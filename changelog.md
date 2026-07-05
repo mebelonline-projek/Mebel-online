@@ -75,12 +75,25 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
   - **Verifikasi:** `get_dashboard_stats()` mengembalikan 41 produk, 13 kategori ✅
   - **Catatan:** App menggunakan `service_role` key → bypass RLS, jadi tidak terganggu
 
+- **✅ Ubah Sandi Admin Tidak Bisa Login Setelahnya (RESOLVED)**
+  - **Masalah:** Setelah ubah password di `/admin/dashboard/profile`, password baru tidak bisa dipakai login, dan password lama juga tidak bisa dipakai
+  - **Root Causes (2 bug):**
+    1. **Verifikasi password lama:** `bcryptjs.compare()` tidak bisa verifikasi hash `$2a$12$...` dari `extensions.crypt()` → selalu gagal "Password saat ini tidak sesuai"
+    2. **Hash password baru:** `bcryptjs.hash()` menghasilkan hash `$2b$12$...` yang tidak bisa diverifikasi oleh `extensions.crypt()` di `verify_admin_password` → terkunci keluar permanen
+  - **Solusi:**
+    - Buat DB function `hash_admin_password(p_password)` yang menggunakan `extensions.crypt()` + `extensions.gen_salt('bf', 12)`
+    - Ubah API route `/api/auth/change-password` — ganti `bcryptjs` dengan 2 RPC calls: `verify_admin_password` (verifikasi) + `hash_admin_password` (hash baru)
+  - **Script Fix:** `scripts/fix-change-password.sql` — WAJIB dijalankan di Supabase SQL Editor
+  - **Perubahan:**
+    - `scripts/fix-change-password.sql` — BARU, DB function `hash_admin_password`
+    - `src/app/api/auth/change-password/route.ts` — ganti `hashPassword`/`verifyPassword` dari `@/lib/auth` dengan RPC calls
+
 #### Known Issues
-- **⚠️ Login Admin Gagal di Production (mebelonline.id) — BELUM RESOLVED**
+- **✅ Login Admin Gagal di Production (mebelonline.id) — RESOLVED**
   - **Masalah:** Login berhasil di localhost, tapi gagal di domain `mebelonline.id` dengan pesan "Email atau password salah"
-  - **Root Cause:** Script `fix-auth-functions.sql` dijalankan setelah `fix-supabase-linter.sql`, sehingga function `verify_admin_password` di-overwrite dengan versi yang menggunakan `crypt()` tanpa prefix `extensions.`. Function return empty array → login gagal.
-  - **Diagnosis:** Test RPC langsung ke Supabase → `verify_admin_password` return `[]` (empty)
-  - **Script Fix:** `scripts/fix-verify-password.sql` — re-create function dengan `extensions.crypt()`
+  - **Root Cause:** Script `fix-auth-functions.sql` dijalankan setelah `fix-supabase-linter.sql`, sehingga function `verify_admin_password` di-overwrite dengan versi yang menggunakan `crypt()` tanpa prefix `extensions.` + return type `UUID` (kolom `id` bertipe TEXT). Function throw error → return empty array → login gagal.
+  - **Efek Samping:** Karena login gagal, session NextAuth tidak valid → semua API yang memanggil `requireAdmin()` return 401 → data kosong di halaman admin selain dashboard (dashboard stats API tidak pakai `requireAdmin()`, langsung RPC via `service_role`)
+  - **Script Fix:** `scripts/fix-all-functions-final.sql` — re-create KEDUA function (`verify_admin_password` + `get_dashboard_stats`) dengan `extensions.crypt()`, return type `TEXT`, schema-qualified table names
   - **Status:** Script sudah dibuat, WAJIB dijalankan di Supabase SQL Editor
 - **✅ Dashboard Error: "Cannot read properties of undefined (reading 'call')" — RESOLVED** (lihat detail di section Fixed di atas)
 
