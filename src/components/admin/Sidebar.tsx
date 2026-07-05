@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
   Package,
@@ -29,7 +28,7 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = async () => {
-    await signOut({ redirect: false });
+    await fetch("/api/auth/logout", { method: "POST" });
     router.push("/admin/login");
   };
 

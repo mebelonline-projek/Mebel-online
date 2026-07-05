@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   LayoutDashboard,
   Package,
@@ -35,22 +34,20 @@ export default function MobileNav() {
               href={item.href}
               className="relative flex flex-col items-center justify-center gap-0.5 min-w-0 w-14 h-full"
             >
-              {/* Animated active indicator */}
+              {/* Animated active indicator — CSS only, no framer-motion */}
               {isActive && (
-                <motion.div
-                  layoutId="active-nav"
-                  className="absolute -top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-brand-maroon"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                <span
+                  className="absolute -top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-brand-maroon transition-all duration-300"
                 />
               )}
 
               <Icon
-                className={`h-5 w-5 ${
+                className={`h-5 w-5 transition-colors duration-200 ${
                   isActive ? "text-brand-maroon" : "text-gray-400"
                 }`}
               />
               <span
-                className={`text-[10px] leading-tight font-medium ${
+                className={`text-[10px] leading-tight font-medium transition-colors duration-200 ${
                   isActive ? "text-brand-maroon" : "text-gray-500"
                 }`}
               >
