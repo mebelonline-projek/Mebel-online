@@ -9,6 +9,40 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
 ## [Unreleased]
 
+### ⚠️ PERINGATAN KERAS: CPU LIMIT CLOUDFLARE WORKERS (50ms)
+
+**PROYEK INI MENGGUNAKAN CLOUDFLARE WORKERS FREE TIER — CPU LIMIT 50ms PER REQUEST**
+
+Setiap API route, middleware, dan server-side code WAJIB berjalan di bawah 50ms CPU time. Jika melebihi, akan terjadi **Error 1102: Worker Exceeded Resource Limits** dan halaman akan crash.
+
+#### ❌ DILARANG KERAS (Akan menyebabkan CPU timeout):
+1. **bcryptjs di Worker** — `bcrypt.compare()` / `bcrypt.hash()` memakan 20-40ms CPU → gunakan Supabase RPC dengan `extensions.crypt()`
+2. **Multiple Supabase queries** — Jangan lakukan 2+ query terpisah → gabung dalam 1 RPC function
+3. **N+1 query loops** — Jangan loop UPDATE/SELECT untuk setiap item → gunakan batch operation
+4. **Rate-limiter database-based** — Query ke database untuk rate limiting = 25-35ms overhead → hapus atau gunakan in-memory
+5. **JOIN COUNT di query** — `select("*, products:Product(count)")` = 5-10ms overhead → hapus jika tidak critical
+6. **SSR + ISR di dashboard** — Server-side rendering dengan Supabase RPC = beban berat → gunakan client component
+7. **Library berat di Worker** — `sharp`, `framer-motion`, `next-auth/react` tidak kompatibel dengan Cloudflare Workers
+
+#### ✅ WAJIB DILAKUKAN:
+1. **Pindahkan CPU berat ke Supabase** — Gunakan Database Functions (RPC) dengan `extensions.crypt()` untuk bcrypt
+2. **1 RPC call per endpoint** — Gabungkan semua operasi dalam 1 database function
+3. **Client component untuk dashboard** — Data fetching di browser, Worker hanya kirim HTML shell statis
+4. **Optional chaining di frontend** — Gunakan `_count?.products ?? 0` untuk hindari undefined error
+5. **Test CPU time sebelum deploy** — Pastikan endpoint berjalan <30ms (buffer 20ms untuk safety)
+
+#### 📊 Target CPU Usage (Wajib):
+- Login: 15-25ms ✅
+- Dashboard API: 10-15ms ✅
+- GET /api/products: 10-15ms ✅
+- GET /api/categories: 10-15ms ✅
+- POST /api/products: 10-15ms ✅
+- Change password: 15-25ms ✅
+
+**Jika ada kode baru yang melebihi 50ms, DEPLOY AKAN GAGAL dan aplikasi akan crash!**
+
+---
+
 ### 2026-07-05
 
 #### Fixed
@@ -80,13 +114,19 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
   - **Root Causes (2 bug):**
     1. **Verifikasi password lama:** `bcryptjs.compare()` tidak bisa verifikasi hash `$2a$12$...` dari `extensions.crypt()` → selalu gagal "Password saat ini tidak sesuai"
     2. **Hash password baru:** `bcryptjs.hash()` menghasilkan hash `$2b$12$...` yang tidak bisa diverifikasi oleh `extensions.crypt()` di `verify_admin_password` → terkunci keluar permanen
-  - **Solusi:**
+  - **Solusi v1 (TERLALU BERAT — menyebabkan Error 1102):**
     - Buat DB function `hash_admin_password(p_password)` yang menggunakan `extensions.crypt()` + `extensions.gen_salt('bf', 12)`
     - Ubah API route `/api/auth/change-password` — ganti `bcryptjs` dengan 2 RPC calls: `verify_admin_password` (verifikasi) + `hash_admin_password` (hash baru)
-  - **Script Fix:** `scripts/fix-change-password.sql` — WAJIB dijalankan di Supabase SQL Editor
+    - **MASALAH:** 3 roundtrip ke Supabase (verify + hash + update) → CPU timeout di Cloudflare Workers Free Tier (50ms)
+  - **Solusi v2 (FINAL — 1 RPC call):**
+    - Buat DB function `change_admin_password(p_email, p_current_password, p_new_password)` yang melakukan verifikasi + hash + update dalam **1 RPC call**
+    - API route cukup panggil 1 RPC → CPU usage ~15-25ms (di bawah 50ms limit)
+  - **Script Fix:** `scripts/fix-change-password-v2.sql` — WAJIB dijalankan di Supabase SQL Editor
   - **Perubahan:**
-    - `scripts/fix-change-password.sql` — BARU, DB function `hash_admin_password`
-    - `src/app/api/auth/change-password/route.ts` — ganti `hashPassword`/`verifyPassword` dari `@/lib/auth` dengan RPC calls
+    - `scripts/fix-change-password-v2.sql` — BARU, DB function `change_admin_password` (all-in-one)
+    - `src/app/api/auth/change-password/route.ts` — ganti ke 1 RPC call `change_admin_password`
+  - **Deploy Info:**
+    - Commit: `733e3c3`
 
 #### Known Issues
 - **✅ Login Admin Gagal di Production (mebelonline.id) — RESOLVED**
