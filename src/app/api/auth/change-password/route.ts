@@ -35,53 +35,36 @@ export async function POST(request: Request) {
 
     const supabase = getSupabase();
 
-    // Verifikasi password saat ini menggunakan RPC (sama seperti login)
-    // Ini memastikan hash $2a$12$... dari extensions.crypt() bisa diverifikasi
-    const { data: verifyResult, error: verifyError } = await supabase
-      .rpc("verify_admin_password", {
+    // 1 RPC call: verifikasi + hash + update (all-in-one)
+    // CPU usage: ~15-25ms (di bawah 50ms limit Cloudflare Workers)
+    const { data: result, error: rpcError } = await supabase
+      .rpc("change_admin_password", {
         p_email: session.user.email,
-        p_password: currentPassword,
+        p_current_password: currentPassword,
+        p_new_password: newPassword,
       });
 
-    if (verifyError || !verifyResult || verifyResult.length === 0) {
+    if (rpcError) {
+      console.error("Change password RPC error:", rpcError);
       return NextResponse.json(
-        { success: false, error: "Password saat ini tidak sesuai." },
+        { success: false, error: "Terjadi kesalahan server." },
+        { status: 500 }
+      );
+    }
+
+    // Parse JSONB result
+    const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: parsed.error || "Gagal mengubah password." },
         { status: 400 }
-      );
-    }
-
-    // Hash password baru menggunakan RPC (menghasilkan hash $2a$12$...)
-    const { data: hashedPassword, error: hashError } = await supabase
-      .rpc("hash_admin_password", {
-        p_password: newPassword,
-      });
-
-    if (hashError || !hashedPassword) {
-      console.error("Hash password error:", hashError);
-      return NextResponse.json(
-        { success: false, error: "Gagal meng-hash password baru." },
-        { status: 500 }
-      );
-    }
-
-    // Update password di database
-    const adminId = verifyResult[0].id;
-    const { error: updateError } = await supabase
-      .from("Admin")
-      .update({ password: hashedPassword })
-      .eq("id", adminId);
-
-    if (updateError) {
-      console.error("Update password error:", updateError);
-      return NextResponse.json(
-        { success: false, error: "Gagal mengupdate password." },
-        { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: "Password berhasil diubah.",
+      message: parsed.message || "Password berhasil diubah.",
     });
   } catch (error) {
     console.error("Change password error:", error);
