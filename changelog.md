@@ -1,4 +1,4 @@
-# Changelog
+  # Changelog
 
 Semua perubahan signifikan pada proyek Mebel Online akan dicatat di file ini.
 
@@ -12,6 +12,22 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 ### 2026-07-05
 
 #### Fixed
+- **✅ Login Admin Gagal — "Email atau password salah" (RESOLVED)**
+  - **Masalah:** Login dengan kredensial yang benar tetap gagal
+  - **Root Causes (3 masalah bertumpuk):**
+    1. **Type Mismatch:** Kolom `id` bertipe TEXT, tapi function `verify_admin_password` return type UUID
+    2. **pgcrypto Schema:** Extension pgcrypto terinstall di schema `extensions`, tapi function memanggil `crypt()` tanpa schema prefix
+    3. **Password Hash Corrupt:** Hash bcrypt lama (`$2b$12$qQR...`) tidak kompatibel dengan `extensions.crypt()` — format berbeda
+  - **Solusi:**
+    - Drop & recreate function dengan return type `TEXT` (sesuai kolom)
+    - Gunakan `extensions.crypt()` dengan schema prefix eksplisit
+    - Reset semua password admin dengan hash baru via `extensions.crypt()` + `extensions.gen_salt('bf', 12)`
+  - **Kredensial Baru:**
+    - `mebelonline111@gmail.com` / `password123` ✅
+    - `admin@example.com` / `password123` ✅
+  - **Script Fix:** `scripts/fix-login-api4.mjs` (via Supabase Management API)
+  - **Catatan:** User WAJIB clear cookies/storage browser sebelum test login
+
 - **Halaman Admin Kategori Error "Terjadi Kesalahan"**
   - **Masalah:** Halaman `/admin/dashboard/categories` menampilkan error "Terjadi Kesalahan saat memuat bagian ini"
   - **Root Cause:** Optimasi CPU (2026-07-03) menghapus JOIN COUNT dari `GET /api/categories`, tapi frontend masih mengakses `cat._count.products` yang kini `undefined`
@@ -21,51 +37,47 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
     - `src/app/admin/dashboard/categories/page.tsx`: Interface `Category` → `_count?: { products: number }`, semua akses `_count.products` → `_count?.products ?? 0`
   - **Deploy:** Commit `9ca32f8`, Version ID `f029dba8-43cc-425d-81c6-ba2e2e71ef7e`
 
-#### Security
-- **Perbaikan Security Warning Supabase Linter (6 warning → 0)**
-  - **Masalah:** 6 warning dari Supabase Database Linter terkait keamanan RPC functions
+- **✅ Dashboard Error: "Cannot read properties of undefined (reading 'call')" (RESOLVED)**
+  - **Masalah:** Halaman `/admin/dashboard` menampilkan error runtime `TypeError: Cannot read properties of undefined (reading 'call')` di `<ClientPageRoot>`
+  - **Root Causes (2 masalah bertumpuk):**
+    1. **`next-auth/react` incompatibility:** `next-auth/react` (v5.0.0-beta.31) tidak kompatibel dengan Next.js 15.5.19 + React 19 di build Cloudflare Workers (OpenNext). Webpack gagal resolve module `next-auth/react` di Server Component bundle, sehingga `AuthProvider` resolve ke `undefined`.
+    2. **`framer-motion` incompatibility:** `framer-motion` v12 juga bermasalah dengan React 19 + Next.js 15.5 di environment OpenNext/Cloudflare Workers. Module gagal di-resolve oleh webpack client.
+  - **Solusi:** Hapus semua ketergantungan `next-auth/react` dan `framer-motion` dari dashboard tree:
+    1. Hapus `AuthProvider` (SessionProvider) dari `layout.tsx` — layout jadi Server Component murni
+    2. Refactor `profile/page.tsx` — ganti `useSession()` (client-side) dengan `auth()` (server-side), pisahkan form ke `ChangePasswordForm.tsx`
+    3. Ganti `signOut()` dari `next-auth/react` di `Sidebar.tsx` dengan `fetch("/api/auth/logout")` + hapus cookie session
+    4. Ganti animasi `framer-motion` di `MobileNav.tsx` dengan CSS `transition` biasa
+    5. Buat API route `src/app/api/auth/logout/route.ts` untuk handle logout via cookie deletion
   - **Perubahan:**
-    - `scripts/optimize-auth.sql`: Tambahkan `SET search_path = 'pg_catalog, pg_temp, public'` pada kedua function
-    - Tambahkan `GRANT EXECUTE ... TO service_role` (penting: service_role di Supabase BUKAN superuser)
-    - Tambahkan `REVOKE EXECUTE ... FROM anon, authenticated` (JANGAN dari PUBLIC — akan blokir service_role)
-    - Tambahkan `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO service_role`
-  - **Warning yang Dihapus:**
-    - `function_search_path_mutable` (2 warning) ✅
-    - `anon_security_definer_function_executable` (2 warning) ✅
-    - `authenticated_security_definer_function_executable` (2 warning) ✅
-  - **File Baru:** `scripts/fix-auth-functions.sql` — versi fix yang bisa langsung dijalankan di Supabase
+    - `src/app/admin/dashboard/layout.tsx` — hapus import & wrapper `AuthProvider`
+    - `src/app/admin/dashboard/profile/page.tsx` — Server Component, gunakan `auth()` dari `@/lib/auth`
+    - `src/app/admin/dashboard/profile/ChangePasswordForm.tsx` — BARU, client component untuk form ganti password
+    - `src/components/admin/Sidebar.tsx` — ganti `signOut()` → `fetch("/api/auth/logout")`
+    - `src/components/admin/MobileNav.tsx` — hapus `framer-motion`, ganti animasi dengan CSS transition
+    - `src/app/api/auth/logout/route.ts` — BARU, API route untuk logout via cookie deletion
+  - **Catatan:** User WAJIB hard refresh browser (`Ctrl+Shift+R`) setelah update untuk clear cache module lama
+
+#### Security
+- **✅ Perbaikan Supabase Linter: 3 ERROR + 4 WARNING (RESOLVED)**
+  - **Masalah:** 7 linter issues muncul setelah revisi halaman admin:
+    - 3 ERROR: `policy_exists_rls_disabled`, `rls_disabled_in_public`, `sensitive_columns_exposed` (semua di tabel `Admin`)
+    - 4 WARNING: `anon_security_definer_function_executable` & `authenticated_security_definer_function_executable` (untuk `get_dashboard_stats` & `verify_admin_password`)
+  - **Root Causes:**
+    1. Tabel `Admin` punya policy "Deny all" tapi RLS belum di-enable
+    2. RPC functions di-recreate tanpa `REVOKE EXECUTE FROM anon, authenticated`
+    3. `crypt()` dipanggil tanpa schema prefix `extensions.` (pgcrypto di schema `extensions`)
+    4. Nama tabel `Product` & `Category` perlu schema-qualified (`public."Product"`) di dalam function
+  - **Solusi:**
+    - `ALTER TABLE public."Admin" ENABLE ROW LEVEL SECURITY` — mengaktifkan policy "Deny all"
+    - Re-create kedua function dengan `extensions.crypt()`, return type `TEXT`, schema-qualified table names
+    - `GRANT EXECUTE ... TO service_role` + `REVOKE EXECUTE ... FROM anon, authenticated`
+  - **File Baru:** `scripts/fix-supabase-linter.sql` — script lengkap untuk fix semua 7 linter issues
+  - **Verifikasi:** `get_dashboard_stats()` mengembalikan 41 produk, 13 kategori ✅
+  - **Catatan:** App menggunakan `service_role` key → bypass RLS, jadi tidak terganggu
 
 #### Known Issues
-- **❌ Login Admin Gagal — "Email atau password salah"**
-  - **Status:** MASIH BELUM TERSELESAIKAN
-  - **Gejala:** Login dengan kredensial yang benar tetap gagal, pesan "Email atau password salah"
-  - **Console:** Kosong (tidak ada error di browser)
-  - **Teori Root Cause:**
-    1. `REVOKE EXECUTE FROM PUBLIC` memblokir `service_role` (service_role di Supabase bukan superuser)
-    2. Function `verify_admin_password` mungkin tidak bisa akses tabel `Admin` atau `crypt()` dari pgcrypto
-    3. `SUPABASE_SERVICE_KEY` mungkin salah/expired di Cloudflare Dashboard
-    4. NextAuth session mungkin corrupt akibat error-code loop sebelumnya
-  - **Fix yang Sudah Dicoba:**
-    - ✅ `SET search_path = 'pg_catalog, pg_temp, public'` (sudah diterapkan)
-    - ✅ `GRANT EXECUTE TO service_role` (sudah ada di script)
-    - ✅ `REVOKE FROM anon, authenticated` saja (tanpa PUBLIC)
-    - ❌ **Masih gagal** — perlu investigasi lebih lanjut
-  - **Langkah Selanjutnya (untuk sesi besok):**
-    1. **Verifikasi di Supabase SQL Editor:**
-       ```sql
-       -- Test function langsung
-       SELECT verify_admin_password('admin@example.com', 'password123');
-       SELECT * FROM get_dashboard_stats();
-       ```
-    2. **Cek Supabase Logs** — lihat apakah RPC call masuk dan error apa yang muncul
-    3. **Cek tabel Admin** — pastikan data admin ada dan password hash format benar
-    4. **Cek environment variables** — pastikan `SUPABASE_SERVICE_KEY` benar di Cloudflare Dashboard
-    5. **Clear NextAuth session** — mungkin perlu clear cookies/storage di browser
-  - **File yang Perlu Diperiksa:**
-    - `src/lib/auth.ts` — verifikasi RPC call `verify_admin_password`
-    - `src/lib/supabase.ts` — cek apakah `SUPABASE_SERVICE_KEY` benar
-    - `src/middleware.ts` — cek apakah ada proteksi yang redirect ke login
-  - **Script Fix:** `scripts/fix-auth-functions.sql` — sudah dibuat, tinggal jalankan di Supabase
+- **✅ Login Admin Gagal — RESOLVED** (lihat detail di section Fixed di atas)
+- **✅ Dashboard Error: "Cannot read properties of undefined (reading 'call')" — RESOLVED** (lihat detail di section Fixed di atas)
 
 ### 2026-07-04
 
