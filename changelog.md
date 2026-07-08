@@ -9,6 +9,36 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
 ## [Unreleased]
 
+### 2026-07-08 — Canonical auth (anti whack-a-mole)
+
+#### Fixed / Changed
+- **Single source of truth untuk auth SQL**
+  - File kanonis: `scripts/migrations/001_auth_canonical.sql` (**sudah di-apply ke production**)
+  - Functions: `verify_admin_password`, `change_admin_password`, `reset_admin_password` (BARU), `hash_admin_password`, `get_dashboard_stats`
+  - Semua hash via `extensions.crypt` / `gen_salt('bf', 12)` — tidak ada bcryptjs di Worker path
+- **Tutup dual-hash**
+  - `src/app/api/auth/reset-password/route.ts` → RPC `reset_admin_password` (sebelumnya `bcryptjs.hash` bisa mengunci login)
+  - `src/lib/auth.ts` → hapus import bcryptjs / helper hash di Worker
+  - `scripts/create-admin.mjs` → hash via RPC `hash_admin_password`
+- **Archive script beracun**
+  - `scripts/archive/` — 19 file `fix-*.sql` / `optimize-auth.sql` / reset helpers yang saling overwrite function
+  - README archive: dilarang dijalankan
+- **Kontrak kategori dikunci**
+  - `GET /api/categories` tetap `Product(count)` → `_count.products`
+  - `src/types/index.ts`: `_count` optional; `BentoCatalog` pakai `?.`
+- **Docs**
+  - `ARCHITECTURE.md` ditulis ulang: Cloudflare Workers + Supabase RPC (bukan Vercel/Prisma)
+- **Aturan RESOLVED:** jangan tandai Fixed sebelum SQL applied + E2E production (login → dashboard → kategori → change/reset password)
+
+#### Probe production (sebelum/sesudah apply)
+- Login `mebelonline111@gmail.com` + `password123`: OK (hash `$2a$`)
+- `get_dashboard_stats`: 41 produk / 13 kategori
+- `change_admin_password` + `reset_admin_password`: live setelah apply
+- Catatan: `admin@example.com` tidak ada / password tidak cocok saat probe
+
+#### Deploy app
+- Perubahan route reset-password + auth.ts **perlu deploy Cloudflare Workers** agar runtime memakai kode baru (SQL sudah live mandiri)
+
 ### 2026-07-05 (Lanjutan)
 
 #### Fixed

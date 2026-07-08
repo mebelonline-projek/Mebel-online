@@ -19,6 +19,9 @@ const categorySchema = z.object({
 });
 
 // GET /api/categories
+// CONTRACT (Workers Free): keep Product(count) + _count.products transform.
+// Do NOT remove this JOIN "for CPU" without measuring — admin UI depends on it.
+// Optional chaining (_count?.products ?? 0) remains mandatory in all UIs.
 export async function GET() {
   try {
     const { data: categories, error } = await getSupabase()

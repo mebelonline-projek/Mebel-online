@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
-import { hashPassword } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
@@ -13,69 +14,48 @@ export async function POST(request: Request) {
       );
     }
 
-    if (password.length < 8) {
+    if (typeof password !== "string" || password.length < 8) {
       return NextResponse.json(
         { success: false, error: "Password minimal 8 karakter." },
         { status: 400 }
       );
     }
 
-    const supabase = getSupabase();
+    // 1 RPC: validate token + hash (extensions.crypt) + update + delete token
+    // Avoids bcryptjs on Cloudflare Workers (CPU + hash-format mismatch)
+    const { data: result, error: rpcError } = await getSupabase().rpc(
+      "reset_admin_password",
+      {
+        p_token: token,
+        p_new_password: password,
+      }
+    );
 
-    // Cari token yang valid
-    const { data: resetToken, error: findError } = await supabase
-      .from("PasswordResetToken")
-      .select("*")
-      .eq("token", token)
-      .single();
-
-    if (findError || !resetToken) {
+    if (rpcError) {
+      console.error("Reset password RPC error:", rpcError);
       return NextResponse.json(
-        { success: false, error: "Token tidak valid." },
-        { status: 400 }
-      );
-    }
-
-    const now = new Date();
-    const expiresAt = new Date(resetToken.expiresAt);
-
-    if (expiresAt < now) {
-      // Hapus token yang expired
-      await supabase
-        .from("PasswordResetToken")
-        .delete()
-        .eq("id", resetToken.id);
-
-      return NextResponse.json(
-        { success: false, error: "Token sudah kedaluwarsa. Silakan minta reset password lagi." },
-        { status: 400 }
-      );
-    }
-
-    // Update password admin
-    const hashedPassword = await hashPassword(password);
-    const { error: updateError } = await supabase
-      .from("Admin")
-      .update({ password: hashedPassword })
-      .eq("email", resetToken.email);
-
-    if (updateError) {
-      console.error("Update password error:", updateError);
-      return NextResponse.json(
-        { success: false, error: "Gagal mengupdate password." },
+        { success: false, error: "Terjadi kesalahan server." },
         { status: 500 }
       );
     }
 
-    // Hapus token yang sudah dipakai
-    await supabase
-      .from("PasswordResetToken")
-      .delete()
-      .eq("id", resetToken.id);
+    const parsed = typeof result === "string" ? JSON.parse(result) : result;
+
+    if (!parsed?.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: parsed?.error || "Gagal mengupdate password.",
+        },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      message: "Password berhasil diubah. Silakan login dengan password baru.",
+      message:
+        parsed.message ||
+        "Password berhasil diubah. Silakan login dengan password baru.",
     });
   } catch (error) {
     console.error("Reset password error:", error);

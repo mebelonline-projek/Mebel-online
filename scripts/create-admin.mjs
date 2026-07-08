@@ -11,7 +11,6 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import bcrypt from "bcryptjs";
 import { createInterface } from "readline";
 import { env } from "process";
 import { fileURLToPath } from "url";
@@ -125,7 +124,15 @@ CREATE TABLE IF NOT EXISTS "Admin" (
       process.exit(1);
     }
 
-    const hashed = await bcrypt.hash(newPassword, 12);
+    // Hash via Postgres extensions.crypt — must match verify_admin_password
+    const { data: hashed, error: hashErr } = await supabase.rpc(
+      "hash_admin_password",
+      { p_password: newPassword }
+    );
+    if (hashErr || !hashed) {
+      console.error("❌ Gagal hash password:", hashErr?.message || "empty hash");
+      process.exit(1);
+    }
     const { error: updateErr } = await supabase
       .from("Admin")
       .update({ password: hashed })
@@ -154,7 +161,14 @@ CREATE TABLE IF NOT EXISTS "Admin" (
     process.exit(1);
   }
 
-  const hashed = await bcrypt.hash(password, 12);
+  const { data: hashed, error: hashErr } = await supabase.rpc(
+    "hash_admin_password",
+    { p_password: password }
+  );
+  if (hashErr || !hashed) {
+    console.error("❌ Gagal hash password:", hashErr?.message || "empty hash");
+    process.exit(1);
+  }
   const { error: insertErr } = await supabase
     .from("Admin")
     .insert({

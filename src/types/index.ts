@@ -60,7 +60,8 @@ export interface CategoryWithProductCount {
   sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
-  _count: { products: number };
+  /** Optional — always coerce with `_count?.products ?? 0` in UI */
+  _count?: { products: number };
 }
 
 export interface ProductWithCategory {

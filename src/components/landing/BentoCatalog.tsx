@@ -182,7 +182,7 @@ export default function BentoCatalog({
             >
               {cat.name}
               <span className="ml-1.5 text-xs opacity-70">
-                ({cat._count.products})
+                ({cat._count?.products ?? 0})
               </span>
             </button>
           ))}

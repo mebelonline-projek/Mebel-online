@@ -12,19 +12,34 @@
 ## Ringkasan Proyek
 
 **Nama:** Muara Teweh — Landing Page Toko Furnitur + Admin Dashboard
-**Tech Stack:** Next.js 15 (latest), TypeScript, Tailwind CSS v4, shadcn/ui, Prisma 6 (PostgreSQL via Supabase), NextAuth.js v5, Resend, Framer Motion 12, Lucide React
-**Deploy:** Vercel (akun klien) + Supabase (Singapore) + GitHub
-**Status:** ✅ Production — build berhasil (21 halaman) — Terdeploy di Vercel
-**URL Production:** https://mebel-online.vercel.app
+**Tech Stack:** Next.js 15 + OpenNext, TypeScript, Tailwind CSS v4, shadcn/ui, Supabase JS (PostgreSQL), NextAuth.js v5, Resend, Framer Motion 12 (landing), Lucide React
+**Deploy:** Cloudflare Workers Free (CPU 50ms) + Supabase (Singapore) + GitHub — **bukan Vercel/Prisma lagi**
+**Status:** Production di Workers; auth SQL kanonis applied 2026-07-08
+**URL Production:** https://mebelonline.id (lihat juga `*.workers.dev` jika dipakai)
 **GitHub:** https://github.com/mebelonline-projek/Mebel-online
 **Supabase:** xczbowaotnvzduikgdad (Singapore)
-**Akun Vercel/GitHub/Supabase:** Klien (terpisah dari akun pribadi developer)
+**Auth SQL (single source of truth):** `scripts/migrations/001_auth_canonical.sql` — jangan jalankan `scripts/archive/*`
+**Akun CF/GitHub/Supabase:** Klien (terpisah dari akun pribadi developer)
 
 ---
 
 ## Riwayat Perubahan
 
-### [2026-06-16] — Init proyek & landing page + admin dashboard
+### [2026-07-08] — Canonical auth (anti whack-a-mole)
+
+#### Yang dilakukan:
+1. Probe production via Supabase JS — login OK, `reset_admin_password` belum ada → dibuat
+2. `scripts/migrations/001_auth_canonical.sql` — single source of truth, **sudah apply** ke DB
+3. Tutup dual-hash: reset-password + create-admin + auth.ts tanpa bcryptjs Worker path
+4. Archive 19 script `fix-*` / `optimize-auth` ke `scripts/archive/` (dilarang dijalankan)
+5. Kunci kontrak `_count` categories; update `ARCHITECTURE.md` + changelog aturan RESOLVED
+
+#### Status:
+- ✅ SQL auth kanonis live di Supabase
+- ⚠️ App code (reset-password route) perlu **deploy Workers** agar production memakai RPC baru
+- ⚠️ E2E browser checklist masih menunggu verifikasi user
+
+---
 
 #### Yang dilakukan:
 1. **Init Next.js 15** — App Router, TypeScript, Tailwind CSS, src directory
