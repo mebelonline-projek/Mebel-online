@@ -36,8 +36,8 @@
 
 #### Status:
 - ✅ SQL auth kanonis live di Supabase
-- ⚠️ App code (reset-password route) perlu **deploy Workers** agar production memakai RPC baru
-- ⚠️ E2E browser checklist masih menunggu verifikasi user
+- ✅ App deployed Workers — commit `3381b10`, Version `677ae89e-09fa-404f-af49-397261af0897`
+- ⚠️ E2E browser checklist: login → dashboard → kategori → (opsional) change password
 
 ---
 

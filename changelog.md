@@ -37,7 +37,9 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 - Catatan: `admin@example.com` tidak ada / password tidak cocok saat probe
 
 #### Deploy app
-- Perubahan route reset-password + auth.ts **perlu deploy Cloudflare Workers** agar runtime memakai kode baru (SQL sudah live mandiri)
+- **Deployed:** 2026-07-08 — commit `3381b10`, Version ID `677ae89e-09fa-404f-af49-397261af0897`
+- URL Workers: https://mebel-online.mebelonline.workers.dev
+- Perubahan route reset-password + auth.ts live di Worker setelah deploy ini
 
 ### 2026-07-05 (Lanjutan)
 
