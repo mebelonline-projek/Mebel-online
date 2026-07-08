@@ -9,6 +9,16 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
 ## [Unreleased]
 
+### 2026-07-08 — Landing timeout fix (static shell)
+
+#### Fixed
+- **Landing `/` muter / timeout di laptop (Error 1102 / hang >60s)**
+  - **Root cause:** SSR `page.tsx` menjalankan 4+ query Supabase di Worker saat cache miss
+  - **Solusi:** Static shell + `LandingPageClient` fetch data via API dari browser
+  - **File:** `src/app/page.tsx`, `src/components/landing/LandingPageClient.tsx`, `src/app/api/settings/public/route.ts`, `src/lib/landing-data.ts`
+  - **Deploy:** Version `97814cf9-8df6-488c-87d0-1703fb02a538`
+  - **Verifikasi:** GET `/` ~800ms; `/api/settings/public` + categories + products 200
+
 ### 2026-07-08 — Thin login (fix Error 1102 setelah ganti password)
 
 #### Fixed

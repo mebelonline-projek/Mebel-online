@@ -14,7 +14,7 @@
 **Nama:** Muara Teweh — Landing Page Toko Furnitur + Admin Dashboard
 **Tech Stack:** Next.js 15 + OpenNext, TypeScript, Tailwind CSS v4, shadcn/ui, Supabase JS (PostgreSQL), NextAuth.js v5, Resend, Framer Motion 12 (landing), Lucide React
 **Deploy:** Cloudflare Workers Free (CPU 50ms) + Supabase (Singapore) + GitHub — **bukan Vercel/Prisma lagi**
-**Status:** Production di Workers; thin login + E2E round-trip PASS (2026-07-08)
+**Status:** Production di Workers; landing client-fetch + thin login (2026-07-08)
 **URL Production:** https://mebelonline.id (lihat juga `*.workers.dev` jika dipakai)
 **GitHub:** https://github.com/mebelonline-projek/Mebel-online
 **Supabase:** xczbowaotnvzduikgdad (Singapore)
@@ -24,6 +24,21 @@
 ---
 
 ## Riwayat Perubahan
+
+### [2026-07-08] — Landing timeout fix (static shell + client fetch)
+
+#### Yang dilakukan:
+1. `/` jadi **static shell** — tidak ada query Supabase di SSR Worker (hindari timeout >60s)
+2. `LandingPageClient` fetch paralel: `/api/settings/public`, `/api/categories`, `/api/products`
+3. `GET /api/settings/public` — settings publik (1 query SiteConfig)
+4. Deploy Workers Version `97814cf9-8df6-488c-87d0-1703fb02a538`
+
+#### Status:
+- ✅ GET `/` ~800ms (bukan timeout)
+- ✅ API data landing 200 (settings/categories/products)
+- ✅ E2E Playwright: halaman load, katalog tampil
+
+---
 
 ### [2026-07-08] — Thin login (Workers Free, tanpa Server Action)
 
