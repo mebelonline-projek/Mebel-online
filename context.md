@@ -14,7 +14,7 @@
 **Nama:** Muara Teweh — Landing Page Toko Furnitur + Admin Dashboard
 **Tech Stack:** Next.js 15 + OpenNext, TypeScript, Tailwind CSS v4, shadcn/ui, Supabase JS (PostgreSQL), NextAuth.js v5, Resend, Framer Motion 12 (landing), Lucide React
 **Deploy:** Cloudflare Workers Free (CPU 50ms) + Supabase (Singapore) + GitHub — **bukan Vercel/Prisma lagi**
-**Status:** Production di Workers; auth SQL kanonis applied 2026-07-08
+**Status:** Production di Workers; thin login + E2E round-trip PASS (2026-07-08)
 **URL Production:** https://mebelonline.id (lihat juga `*.workers.dev` jika dipakai)
 **GitHub:** https://github.com/mebelonline-projek/Mebel-online
 **Supabase:** xczbowaotnvzduikgdad (Singapore)
@@ -24,6 +24,22 @@
 ---
 
 ## Riwayat Perubahan
+
+### [2026-07-08] — Thin login (Workers Free, tanpa Server Action)
+
+#### Yang dilakukan:
+1. `POST /api/auth/login` — 1 RPC `verify_admin_password` + JWT cookie Auth.js (`@auth/core/jwt`)
+2. `LoginForm` pakai `fetch` API (hapus `loginAction` Server Action yang memicu Error 1102)
+3. `src/lib/session-cookie.ts` — encode cookie kompatibel middleware + `auth()`
+4. `scripts/_reset-admin-password.mjs` — recovery password production
+5. Deploy Workers Version `b0b266ce-71e5-4924-8121-6f96443b52aa`
+
+#### Status:
+- ✅ Login setelah ganti password — no Error 1102 (regresi user teratasi)
+- ✅ E2E round-trip: ganti password → logout → login password baru → revert `password123`
+- ✅ Password production dikembalikan ke `password123` (UI + script verify)
+
+---
 
 ### [2026-07-08] — Canonical auth (anti whack-a-mole)
 
@@ -37,7 +53,14 @@
 #### Status:
 - ✅ SQL auth kanonis live di Supabase
 - ✅ App deployed Workers — commit `3381b10`, Version `677ae89e-09fa-404f-af49-397261af0897`
-- ⚠️ E2E browser checklist: login → dashboard → kategori → (opsional) change password
+- ✅ E2E production PASS (Playwright @ mebelonline.id, 2026-07-08):
+  - Landing load (41 produk) — no Error 1102
+  - Login → dashboard stats 41/13/41/0
+  - Kategori 13 item + count produk > 0
+  - Produk list 41 item
+  - Change-password smoke: wrong current → "Password saat ini tidak sesuai" (400, no 1102)
+  - Logout → login ulang OK
+  - Catatan: full change-password round-trip (ubah + login password baru + revert) **belum** dijalankan (hindari ubah password production tanpa revert)
 
 ---
 

@@ -9,6 +9,23 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
 ## [Unreleased]
 
+### 2026-07-08 — Thin login (fix Error 1102 setelah ganti password)
+
+#### Fixed
+- **Login Error 1102 setelah change-password**
+  - **Masalah:** Ganti password sukses, login ulang → Error 1102 / 503 / "unexpected response"
+  - **Root cause:** `loginAction` (NextAuth Server Action) terlalu berat di Workers Free; smoke test sebelumnya hanya cek password salah (gagal cepat), bukan login sukses setelah hash baru
+  - **Solusi:** `POST /api/auth/login` — 1 RPC + set cookie JWT Auth.js; hapus `src/app/admin/login/actions.ts`
+  - **File:** `src/app/api/auth/login/route.ts`, `src/lib/session-cookie.ts`, `src/app/admin/login/LoginForm.tsx`
+  - **Recovery:** `scripts/_reset-admin-password.mjs`
+  - **Deploy:** Version `b0b266ce-71e5-4924-8121-6f96443b52aa`
+
+#### E2E production (Playwright) — PASS termasuk round-trip
+- Login `password123` → OK
+- Change password → `E2eTempPass99!` → sukses
+- Logout → login `E2eTempPass99!` → dashboard OK (**no 1102**)
+- Revert ke `password123` → OK
+
 ### 2026-07-08 — Canonical auth (anti whack-a-mole)
 
 #### Fixed / Changed
@@ -40,6 +57,16 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 - **Deployed:** 2026-07-08 — commit `3381b10`, Version ID `677ae89e-09fa-404f-af49-397261af0897`
 - URL Workers: https://mebel-online.mebelonline.workers.dev
 - Perubahan route reset-password + auth.ts live di Worker setelah deploy ini
+
+#### E2E production (Playwright @ https://mebelonline.id) — PASS
+- Landing: load OK, katalog 41 produk, no Error 1102
+- Login `mebelonline111@gmail.com`: redirect ke `/admin/dashboard`
+- Dashboard stats: 41 Total Produk / 13 Kategori / 41 Aktif / 0 Tidak Aktif
+- Kategori: 13 kategori, count produk terisi (bukan crash `_count`, bukan semua 0)
+- Produk: list 41 item load
+- Change password (smoke): current salah → alert "Password saat ini tidak sesuai." + API 400 (bukan 1102)
+- Logout → login ulang: OK
+- **Belum:** full round-trip ganti password production + login password baru + revert (sengaja ditunda)
 
 ### 2026-07-05 (Lanjutan)
 

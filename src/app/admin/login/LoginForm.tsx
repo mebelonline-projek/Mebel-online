@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertCircle, Eye, EyeOff, Store } from "lucide-react";
-import { loginAction } from "./actions";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -17,7 +16,7 @@ export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   // Fetch logo di client-side untuk menghindari CPU timeout di Worker
@@ -34,7 +33,7 @@ export default function LoginForm() {
       });
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -42,15 +41,32 @@ export default function LoginForm() {
     formData.append("email", email.toLowerCase());
     formData.append("password", password);
 
-    startTransition(async () => {
-      const result = await loginAction(formData);
-      if (result.error) {
-        setError(result.error);
-      } else {
-        router.push("/admin/dashboard");
-        router.refresh();
+    setIsPending(true);
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.get("email"),
+          password: formData.get("password"),
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        setError(result.error || "Email atau password salah.");
+        return;
       }
-    });
+
+      router.push("/admin/dashboard");
+      router.refresh();
+    } catch {
+      setError("Terjadi kesalahan. Silakan coba lagi.");
+    } finally {
+      setIsPending(false);
+    }
   };
 
   return (
