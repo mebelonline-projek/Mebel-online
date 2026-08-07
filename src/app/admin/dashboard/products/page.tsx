@@ -749,16 +749,21 @@ export default function ProductsPage() {
                 <Input
                   id="sortOrder"
                   type="number"
-                  min={1}
-                  value={form.sortOrder}
+                  min={0}
+                  value={
+                    !editingProduct && form.sortOrder === 0
+                      ? ""
+                      : form.sortOrder
+                  }
                   onChange={(e) =>
                     setForm((p) => ({ ...p, sortOrder: parseInt(e.target.value) || 0 }))
                   }
-                  placeholder="Urutan"
+                  placeholder="Auto"
                   className="h-9 text-sm w-24"
                 />
                 <p className="text-[10px] text-gray-400 leading-tight">
-                  Nomor kecil = tampil lebih dulu. Produk lain akan menyesuaikan otomatis.
+                  Kosongkan untuk otomatis di akhir. Nomor kecil = tampil lebih
+                  dulu; produk lain menyesuaikan otomatis.
                 </p>
               </div>
             </div>

@@ -369,18 +369,24 @@ export default function CategoriesPage() {
               <Input
                 id="sortOrder"
                 type="number"
-                min={1}
-                value={form.sortOrder}
+                min={0}
+                value={
+                  !editingCategory && form.sortOrder === 0
+                    ? ""
+                    : form.sortOrder
+                }
                 onChange={(e) =>
                   setForm((p) => ({
                     ...p,
                     sortOrder: parseInt(e.target.value) || 0,
                   }))
                 }
+                placeholder="Auto"
                 className="h-9 mt-1"
               />
               <p className="text-[10px] text-gray-400 leading-tight mt-1">
-                Nomor kecil = tampil lebih dulu. Kategori lain akan menyesuaikan otomatis.
+                Kosongkan untuk otomatis di akhir. Nomor kecil = tampil lebih
+                dulu; kategori lain menyesuaikan otomatis.
               </p>
             </div>
 

@@ -36,15 +36,28 @@ export async function GET(request: Request) {
     }
 
     if (categorySlug && categorySlug !== "semua") {
-      // Dapatkan category id dari slug
+      // Dapatkan category id dari slug (.maybeSingle: 0 rows → null, bukan error)
       const { data: cat } = await supabase
         .from("Category")
         .select("id")
         .eq("slug", categorySlug)
-        .single();
-      if (cat) {
-        query = query.eq("categoryId", cat.id);
+        .maybeSingle();
+      if (!cat) {
+        // Slug tidak ketemu → kosong, JANGAN return semua produk
+        return NextResponse.json({
+          success: true,
+          data: {
+            products: [],
+            pagination: {
+              page,
+              limit,
+              total: 0,
+              totalPages: 0,
+            },
+          },
+        });
       }
+      query = query.eq("categoryId", cat.id);
     }
 
     const skip = (page - 1) * limit;
@@ -116,7 +129,7 @@ export async function POST(request: Request) {
         .select("sortOrder")
         .order("sortOrder", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       nextSortOrder = (maxData?.sortOrder ?? 0) + 1;
     }
 
