@@ -75,12 +75,12 @@ export async function POST(request: Request) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") || `kategori-${Date.now()}`;
 
-    // Check duplicate slug
+    // Check duplicate slug (.maybeSingle: 0 rows → data null, bukan error)
     const { data: existing } = await supabase
       .from("Category")
       .select("id")
       .eq("slug", slug)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       return NextResponse.json(
@@ -97,10 +97,14 @@ export async function POST(request: Request) {
         .select("sortOrder")
         .order("sortOrder", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       nextSortOrder = (maxData?.sortOrder ?? 0) + 1;
     }
 
+    // createdAt/updatedAt wajib diisi eksplisit: kolom Prisma @updatedAt
+    // tidak punya DEFAULT di Postgres setelah migrasi ke Supabase JS
+    // (bug yang sama sudah diperbaiki di POST /api/products).
+    const now = new Date().toISOString();
     const { data: category, error: createError } = await supabase
       .from("Category")
       .insert({
@@ -110,6 +114,8 @@ export async function POST(request: Request) {
         description: parsed.description ?? null,
         image: parsed.image ?? null,
         sortOrder: nextSortOrder,
+        createdAt: now,
+        updatedAt: now,
       })
       .select()
       .single();
@@ -222,6 +228,7 @@ export async function PUT(request: Request) {
           description: description ?? existing.description,
           image: image ?? existing.image,
           sortOrder: newSort,
+          updatedAt: new Date().toISOString(),
         })
         .eq("id", id)
         .select()
@@ -246,6 +253,7 @@ export async function PUT(request: Request) {
         description: description ?? existing.description,
         image: image ?? existing.image,
         sortOrder: sortOrder ?? existing.sortOrder,
+        updatedAt: new Date().toISOString(),
       })
       .eq("id", id)
       .select()
